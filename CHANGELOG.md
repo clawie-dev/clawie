@@ -4,6 +4,26 @@ All notable changes to Clawie are documented here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.7.1] — Phase 7a: Outcall agent-shim integration (docs)
+
+Phase 7a center of gravity is in `clawie/agent-runtime` v0.5.0
+(`OutcallAgent` permissions client). On the Clawie control-plane
+side there's no code change — the `/run/outcall/agent.sock` shim
+authenticates via `SO_PEERCRED` on the unix socket, so only the
+container (not Clawie's process) can call it. v0.7.1 ships a
+docs-only update to `docs/integrations/outcall.md` describing the
+contract: when to call it, how `available()` gates graceful
+fallback, and how to enable the mount via
+`OUTCALL_MOUNT_AGENT_SOCKET=1`.
+
+### Companion releases
+
+- [clawie/agent-runtime v0.5.0](https://github.com/clawie-dev/agent-runtime/releases/tag/v0.5.0) — the `OutcallAgent` client utility.
+
+### What's deliberately deferred
+
+- **First consumer.** No agent-runtime handler currently writes to the host filesystem or execs a shell, so no caller yet needs the permissions check. Lands when the agent tool layer arrives (post-Phase 7).
+
 ## [0.7.0] — Phase 7: Agent Files + Self-Mod
 
 Agents are first-class. An agent lives in a directory with three
@@ -377,7 +397,8 @@ These are P0 for later phases, not v0.1.0:
 - Scheduler + crons (Phase 9 / spec 027)
 - Backup/DR, upgrades, webhooks, marketplace (Phase 10 / specs 028, 029, 030, 024)
 
-[Unreleased]: https://github.com/clawie-dev/clawie/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/clawie-dev/clawie/compare/v0.7.1...HEAD
+[0.7.1]: https://github.com/clawie-dev/clawie/releases/tag/v0.7.1
 [0.7.0]: https://github.com/clawie-dev/clawie/releases/tag/v0.7.0
 [0.6.1]: https://github.com/clawie-dev/clawie/releases/tag/v0.6.1
 [0.6.0]: https://github.com/clawie-dev/clawie/releases/tag/v0.6.0

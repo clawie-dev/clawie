@@ -134,6 +134,52 @@ The bypass + payload suites only became reliable on 2026-05-19 — prior to that
 
 ---
 
+## Phase 7a: agent-shim integration
+
+Phase 7a adds a *container-side* client for Outcall's
+`/v1/permissions/check` endpoint. Lives in `clawie/agent-runtime`
+v0.5.0+ as `src/outcall_agent.ts`:
+
+```ts
+import { OutcallAgent } from './outcall_agent.ts'
+
+const shim = new OutcallAgent() // defaults to /run/outcall/agent.sock
+
+if (shim.available()) {
+  const verdict = await shim.permissionsCheck({
+    action_type: 'file_access',
+    target: '/workspace/SOUL.md',
+    metadata: { kind: 'self_mod' },
+  })
+  if (!verdict.allowed) {
+    return { ok: false, cause: 'permission_denied', detail: verdict.reason }
+  }
+}
+// proceed with the side-effect
+```
+
+**Identity** flows through `SO_PEERCRED` on the unix socket — the
+Outcall daemon identifies the *calling container* (the agent),
+strips the trailing `-<N>` replica suffix to get `agent.name`, and
+evaluates the rule engine with the same context the L7 proxy uses.
+
+**Graceful fallback**: when `OUTCALL_MOUNT_AGENT_SOCKET` is unset
+on the spawner (the default), `agent.sock` isn't mounted; the
+client's `available()` returns `false` and `permissionsCheck()`
+resolves to `{allowed: true, reason: 'shim socket not mounted'}`.
+Handlers can call the check unconditionally without branching on
+deployment.
+
+**No current consumer.** v0.5.0 ships the utility; the first
+real consumer is whichever agent-runtime phase introduces a tool
+layer (file_access, shell_exec). The structural piece is in place;
+plug-in is straightforward.
+
+**To enable**: spawner-side, set
+`OUTCALL_MOUNT_AGENT_SOCKET=1` so `OutcallEgressProvider` adds
+`-v /run/outcall/agent.sock:/run/outcall/agent.sock` to the agent's
+docker run.
+
 ## Phase 5a exit status
 
 - [x] Outcall's surface mapped against Clawie's needs.
