@@ -4,6 +4,35 @@ All notable changes to Clawie are documented here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.9.0] — Phase 9: Scheduler + Crons
+
+Recurring tasks. `cron_jobs` rows describe (name, cron expression,
+intent, payload template, team). `scheduler:tick` fires due jobs and
+sweeps expired approvals; operators wire it into a host cron (every
+minute). When `nextRunAt <= now` the scheduler creates a task via the
+state machine, advances `nextRunAt` to the next cron firing, and
+emits a `cron.fired` audit event.
+
+### Added
+
+- **`CronJob` model + migration.** name (unique), cron_expression (5-field), intent, payloadTemplate (JSON), teamSlug, enabled, lastRunAt, nextRunAt, lastTaskId.
+- **`parseCron()` + `nextFiring()`** — `app/services/cron.ts`. Zero-dep 5-field parser. Supports `*`, exact, ranges (`a-b`), lists (`a,b,c`), steps (`X/N`). POSIX OR-semantics when both DOM and DOW are restrictive. 366-day forward bound.
+- **`Scheduler.tick()`** — `app/services/scheduler.ts`. Per due job: create task, advance nextRunAt, audit. Approvals sweep runs in the same tick.
+- **CLIs** — `scheduler:tick`, `cron:create <name> --schedule '5 * * * *' --intent ... --payload ...`.
+- **Audit actions** — `cron.fired`, `cron.fire_failed`.
+- **Tests** — 8 cron parser, 2 CronJob model, 5 Scheduler. 159 total (+15 vs v0.8.1).
+
+### Operator wiring
+
+```
+* * * * * cd /path/to/clawie && node ace scheduler:tick >> /var/log/clawie/tick.log 2>&1
+```
+
+### Spec alignment
+
+- Spec 027 (scheduler + crons).
+- Spec 006/007 (audit carries cron source dimension).
+
 ## [0.8.1] — Phase 8a: Per-team rule scoping ergonomics
 
 Operators move from "edit YAML by hand" to "one command per team".
@@ -445,7 +474,8 @@ These are P0 for later phases, not v0.1.0:
 - Scheduler + crons (Phase 9 / spec 027)
 - Backup/DR, upgrades, webhooks, marketplace (Phase 10 / specs 028, 029, 030, 024)
 
-[Unreleased]: https://github.com/clawie-dev/clawie/compare/v0.8.1...HEAD
+[Unreleased]: https://github.com/clawie-dev/clawie/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/clawie-dev/clawie/releases/tag/v0.9.0
 [0.8.1]: https://github.com/clawie-dev/clawie/releases/tag/v0.8.1
 [0.8.0]: https://github.com/clawie-dev/clawie/releases/tag/v0.8.0
 [0.7.1]: https://github.com/clawie-dev/clawie/releases/tag/v0.7.1
