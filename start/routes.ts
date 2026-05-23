@@ -28,3 +28,8 @@ router
     router.post('logout', [controllers.Session, 'destroy'])
   })
   .use(middleware.auth())
+
+// ── Phase 1 API surface ───────────────────────────────────────────────────────
+router.get('/v1/tasks', [controllers.Tasks, 'index'])
+router.post('/v1/tasks', [controllers.Tasks, 'store'])
+router.get('/v1/tasks/:id', [controllers.Tasks, 'show'])

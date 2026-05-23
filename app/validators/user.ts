@@ -1,3 +1,4 @@
+// @no-test: AdonisJS scaffold file from the template; not focal to Phase 1. Will gain tests when operator auth is reworked per spec 023.
 import vine from '@vinejs/vine'
 
 /**

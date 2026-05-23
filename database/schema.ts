@@ -7,6 +7,68 @@
 import { BaseModel, column } from '@adonisjs/lucid/orm'
 import { DateTime } from 'luxon'
 
+export class AuditEventSchema extends BaseModel {
+  static $columns = ['action', 'actor', 'createdAt', 'details', 'hash', 'id', 'outcome', 'prevHash', 'reason', 'subjectId', 'subjectKind'] as const
+  $columns = AuditEventSchema.$columns
+  @column()
+  declare action: string
+  @column()
+  declare actor: string
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column()
+  declare details: string | null
+  @column()
+  declare hash: string
+  @column({ isPrimary: true })
+  declare id: number
+  @column()
+  declare outcome: string
+  @column()
+  declare prevHash: string | null
+  @column()
+  declare reason: string | null
+  @column()
+  declare subjectId: string | null
+  @column()
+  declare subjectKind: string | null
+}
+
+export class TaskSchema extends BaseModel {
+  static $columns = ['claimExpiresAt', 'claimedBy', 'createdAt', 'failureCause', 'failureDetail', 'finishedAt', 'id', 'idempotencyKey', 'intent', 'payload', 'result', 'startedAt', 'status', 'updatedAt', 'version'] as const
+  $columns = TaskSchema.$columns
+  @column.dateTime()
+  declare claimExpiresAt: DateTime | null
+  @column()
+  declare claimedBy: string | null
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column()
+  declare failureCause: string | null
+  @column()
+  declare failureDetail: string | null
+  @column.dateTime()
+  declare finishedAt: DateTime | null
+  @column({ isPrimary: true })
+  declare id: string
+  @column()
+  declare idempotencyKey: string | null
+  @column()
+  declare intent: string
+  @column()
+  declare payload: string
+  @column()
+  declare result: string | null
+  @column.dateTime()
+  declare startedAt: DateTime | null
+  @column()
+  declare status: string
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime
+  @column()
+  declare version: number
+}
+
 export class UserSchema extends BaseModel {
   static $columns = ['createdAt', 'email', 'fullName', 'id', 'password', 'updatedAt'] as const
   $columns = UserSchema.$columns
