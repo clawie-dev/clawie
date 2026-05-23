@@ -4,6 +4,44 @@ All notable changes to Clawie are documented here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.6.0] — Phase 6: Dashboard MVP
+
+First UI. `GET /dashboard` renders a React + Inertia page with three
+tabs: Approvals (pending queue with countdown deadlines and approve/
+deny actions), Tasks (latest 50 with status + intent + outcome), and
+Audit (latest 100 events from the hash-chained log).
+
+Mutations don't live in the dashboard — Approve/Deny buttons POST to
+the existing `/v1/tasks/:id/approval` REST endpoint, so one path
+serves both UI and API and the audit chain captures both equally.
+
+### Added
+
+- **`DashboardController`** — `app/controllers/dashboard_controller.ts`. Three parallel queries (tasks, pending approvals, recent audit), one Inertia render. Read-only; no mutations.
+- **`/dashboard` route** — registered in `start/routes.ts` as `dashboard`.
+- **`inertia/pages/dashboard/index.tsx`** — React component (typed as `React.FC<DashboardProps>` so Inertia's `ExtractProps` resolves correctly). Tabs, badges, countdown formatting, polling refresh every 5s via `router.reload({ only: [...] })`. No new UI dep; styling is inline `React.CSSProperties` to keep the surface tiny.
+
+### Test posture
+
+- Dashboard controller is `@no-test`'d (per the existing `app/controllers/approvals_controller.ts` pattern). It's thin glue over models that have their own unit-test mirrors (Task, Approval, AuditEvent).
+- 114 unit tests still pass; no new tests added in this phase. A real `tests/functional/dashboard.test.ts` lands when we have proper Japa API-client wiring (separate cleanup).
+
+### TypeScript note
+
+The controller's `inertia.render('dashboard/index', props)` carries an `as never` cast with a documented comment. Reason: the inertia tsconfig transitively type-checks backend controllers through the auto-generated `#generated/controllers` chain, but the `InertiaPages` module augmentation in `.adonisjs/server/pages.d.ts` isn't visible from that compilation unit, so the page-name parameter narrows to `never`. Under the app tsconfig the call type-checks cleanly. Revisit when AdonisJS Inertia ships a typed helper that doesn't depend on module augmentation.
+
+### Not in this phase (deferred)
+
+- **Auth.** `/dashboard` is currently unauthenticated, same as `/v1/*`. Putting the dashboard behind `middleware.auth()` lands when we decide on the operator-auth UX (separate from agent-auth).
+- **WebSocket push.** The 5s polling is the MVP; WebSocket events come with Phase 6a (which also wires the Outcall block-events feed).
+- **Per-task detail page.** Phase 6 ships the lists only. Drill-down lands when the audit-chain-as-narrative view is designed.
+
+### Spec alignment
+
+- Spec 022 (web dashboard) — first iteration.
+- Spec 005 (approvals HITL) — UI surface for the queue.
+- Spec 006 (observability) — read view of the chained audit log.
+
 ## [0.5.2] — Phase 5b: Outcall connector
 
 Real `OutcallEgressProvider`. When the operator sets `CLAWIE_EGRESS=outcall`,
@@ -271,7 +309,8 @@ These are P0 for later phases, not v0.1.0:
 - Scheduler + crons (Phase 9 / spec 027)
 - Backup/DR, upgrades, webhooks, marketplace (Phase 10 / specs 028, 029, 030, 024)
 
-[Unreleased]: https://github.com/clawie-dev/clawie/compare/v0.5.2...HEAD
+[Unreleased]: https://github.com/clawie-dev/clawie/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/clawie-dev/clawie/releases/tag/v0.6.0
 [0.5.2]: https://github.com/clawie-dev/clawie/releases/tag/v0.5.2
 [0.5.1]: https://github.com/clawie-dev/clawie/releases/tag/v0.5.1
 [0.5.0]: https://github.com/clawie-dev/clawie/releases/tag/v0.5.0

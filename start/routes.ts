@@ -37,3 +37,6 @@ router.get('/v1/tasks/:id', [controllers.Tasks, 'show'])
 // ── Phase 4 approvals ─────────────────────────────────────────────────────────
 router.get('/v1/approvals', [controllers.Approvals, 'index'])
 router.post('/v1/tasks/:id/approval', [controllers.Approvals, 'decide'])
+
+// ── Phase 6 dashboard ─────────────────────────────────────────────────────────
+router.get('/dashboard', [controllers.Dashboard, 'index']).as('dashboard')
