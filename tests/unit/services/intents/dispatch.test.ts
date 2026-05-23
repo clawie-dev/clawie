@@ -100,7 +100,48 @@ test.group('services/intents/dispatch', (group) => {
   })
 
   test('exposes the pinned agent-runtime image tag', ({ assert }) => {
-    assert.equal(AGENT_RUNTIME_IMAGE, 'clawie/agent-runtime:0.3.0')
+    assert.equal(AGENT_RUNTIME_IMAGE, 'clawie/agent-runtime:0.4.0')
+  })
+
+  test('sidecar mode injects credentials into the sidecar, not the agent', async ({ assert }) => {
+    process.env.ANTHROPIC_API_KEY = 'sk-test'
+    const calls: string[][] = []
+    const runner: ProcessRunner = async (_bin, args) => {
+      calls.push(args)
+      if (args[0] === 'run' && args.includes('-d')) {
+        return { exitCode: 0, stdout: '', stderr: '', signal: null, timedOut: false }
+      }
+      if (args[0] === 'stop') {
+        return { exitCode: 0, stdout: '', stderr: '', signal: null, timedOut: false }
+      }
+      return {
+        exitCode: 0,
+        stdout: JSON.stringify({ ok: true, output: { provider: 'anthropic' } }),
+        stderr: '',
+        signal: null,
+        timedOut: false,
+      }
+    }
+    setContainerSpawnerForTest(new ContainerSpawner({ runner }))
+    const { containerDispatch: cd } = await import('#services/intents/dispatch')
+    await cd('chat', {
+      network: 'sidecar',
+      credentialProviders: ['anthropic'],
+    })({ taskId: 'sidecar-test', payload: null })
+    delete process.env.ANTHROPIC_API_KEY
+
+    const sidecarStart = calls.find((c) => c[0] === 'run' && c.includes('-d'))
+    const agentRun = calls.find((c) => c[0] === 'run' && !c.includes('-d'))
+    assert.exists(sidecarStart)
+    assert.exists(agentRun)
+    // sidecar received the credential
+    const sidecarHasKey = sidecarStart!.some((a) => a === 'ANTHROPIC_API_KEY=sk-test')
+    assert.isTrue(sidecarHasKey)
+    // agent did NOT get the credential -- only OUTCALL_URL
+    const agentHasKey = agentRun!.some((a) => a === 'ANTHROPIC_API_KEY=sk-test')
+    const agentHasOutcallUrl = agentRun!.some((a) => a === 'OUTCALL_URL=http://localhost:8080')
+    assert.isFalse(agentHasKey)
+    assert.isTrue(agentHasOutcallUrl)
   })
 
   test('emits container.spawn_started + container.spawn_completed on success', async ({

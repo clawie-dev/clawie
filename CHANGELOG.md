@@ -4,6 +4,45 @@ All notable changes to Clawie are documented here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.5.0] — Phase 5: Outcall sidecar
+
+Provider credentials no longer enter the agent container. The `chat`
+intent now spawns an `Outcall` sidecar first, attaches the agent to
+its network namespace, and lets the sidecar inject auth headers on
+the way out. The agent sees `OUTCALL_URL=http://localhost:8080` and
+talks to mount paths (`/anthropic/...`, `/openai/...`) instead of
+provider hostnames. Unknown mounts return `403` at the sidecar — true
+default-deny at the network boundary.
+
+### Added
+
+- **`network: 'sidecar'`** in `ContainerSpawner`. Lifecycle: `docker run -d` the sidecar with the credential env, then `docker run --network=container:<name>` the agent, then `docker stop` the sidecar in a `finally` block (so it dies even if the agent throws). New cause codes: `sidecar_missing`, `sidecar_start_failed`.
+- **Dispatch options** `sidecarImage` and the `OUTCALL_IMAGE` constant. `chat` now registers with `network: 'sidecar'` instead of `'bridge'`. Built-in `echo` stays on `'none'`.
+- **Tests** — 4 new spawner tests (sidecar lifecycle, missing-spec, start failure, teardown after agent crash) + 1 dispatch test asserting credentials route to the sidecar's env and not the agent's. 104 tests total (+5 vs v0.4.0).
+- **fake_spawner.ts** — handles `docker run -d` and `docker stop` calls so lifecycle tests can drive sidecar mode without real Docker.
+
+### Changed
+
+- `AGENT_RUNTIME_IMAGE` pinned to `clawie/agent-runtime:0.4.0` (which honors `OUTCALL_URL`).
+- `chat` intent: previously sent `--network=bridge` + `ANTHROPIC_API_KEY` into the agent; now sends `--network=container:outcall-<id>` + `OUTCALL_URL` only. The key lives in the sidecar.
+- `NetworkMode` union: `'none' | 'bridge' | 'sidecar'`. `'bridge'` is now transitional — kept for backward compatibility, removable once nothing uses it.
+
+### Security posture (Phase 5 vs v0.4.0)
+
+- Credentials are no longer visible via `docker inspect` on the agent container.
+- The agent's network namespace allows **only** the sidecar's allowlisted upstreams. No DNS to arbitrary hosts; no SSRF surface from inside the agent.
+- The sidecar runs read-only with no shell. Its only ingress is `localhost:8080`; only the agent (sharing its netns) can reach it.
+
+### Spec alignment
+
+- Spec 002 (container runtime + outcall) — sidecar wiring; default-deny at egress.
+- Spec 012 (credential broker) — credentials now move through a network boundary, not an env-var copy. Real broker (per-team rotation, per-call audit) still pending.
+
+### Companion releases
+
+- [clawie/outcall v0.1.0](https://github.com/clawie-dev/outcall/releases/tag/v0.1.0) — sidecar image + default rules (anthropic, openai).
+- [clawie/agent-runtime v0.4.0](https://github.com/clawie-dev/agent-runtime/releases/tag/v0.4.0) — chat handler honors `OUTCALL_URL`.
+
 ## [0.4.0] — Phase 4: Policy + Approval
 
 Default-deny semantics. Every task now passes through the policy
@@ -138,7 +177,8 @@ These are P0 for later phases, not v0.1.0:
 - Scheduler + crons (Phase 9 / spec 027)
 - Backup/DR, upgrades, webhooks, marketplace (Phase 10 / specs 028, 029, 030, 024)
 
-[Unreleased]: https://github.com/clawie-dev/clawie/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/clawie-dev/clawie/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/clawie-dev/clawie/releases/tag/v0.5.0
 [0.4.0]: https://github.com/clawie-dev/clawie/releases/tag/v0.4.0
 [0.3.0]: https://github.com/clawie-dev/clawie/releases/tag/v0.3.0
 [0.2.1]: https://github.com/clawie-dev/clawie/releases/tag/v0.2.1

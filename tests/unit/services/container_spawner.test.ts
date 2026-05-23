@@ -215,6 +215,127 @@ test.group('services/container_spawner', () => {
     assert.notInclude(capturedArgs, '--network=none')
   })
 
+  test('sidecar mode: starts sidecar with -d, attaches agent via --network=container:NAME, stops sidecar after', async ({
+    assert,
+  }) => {
+    const calls: Array<{ args: string[] }> = []
+    const runner: ProcessRunner = async (_bin, args) => {
+      calls.push({ args })
+      if (args[0] === 'run' && args.includes('-d')) {
+        return { exitCode: 0, stdout: '', stderr: '', signal: null, timedOut: false }
+      }
+      if (args[0] === 'stop') {
+        return { exitCode: 0, stdout: '', stderr: '', signal: null, timedOut: false }
+      }
+      return {
+        exitCode: 0,
+        stdout: JSON.stringify({ ok: true, output: null }),
+        stderr: '',
+        signal: null,
+        timedOut: false,
+      }
+    }
+    const spawner = new ContainerSpawner({ runner })
+    await spawner.spawn({
+      image: 'agent',
+      spec: { intent: 'chat', task_id: 't' },
+      network: 'sidecar',
+      sidecar: {
+        image: 'clawie/outcall:0.1.0',
+        env: { ANTHROPIC_API_KEY: 'sk-test' },
+        name: 'outcall-fixed',
+      },
+    })
+
+    assert.equal(calls.length, 3)
+    // sidecar start
+    assert.equal(calls[0].args[0], 'run')
+    assert.include(calls[0].args, '-d')
+    assert.include(calls[0].args, 'clawie/outcall:0.1.0')
+    const sidecarEnvIndex = calls[0].args.indexOf('-e')
+    assert.equal(calls[0].args[sidecarEnvIndex + 1], 'ANTHROPIC_API_KEY=sk-test')
+    // agent run
+    assert.equal(calls[1].args[0], 'run')
+    assert.include(calls[1].args, '--network=container:outcall-fixed')
+    assert.notInclude(calls[1].args, '--network=bridge')
+    assert.notInclude(calls[1].args, '--network=none')
+    // sidecar stop
+    assert.equal(calls[2].args[0], 'stop')
+    assert.equal(calls[2].args[calls[2].args.length - 1], 'outcall-fixed')
+  })
+
+  test('sidecar mode: missing sidecar field returns cause=sidecar_missing', async ({ assert }) => {
+    const runner: ProcessRunner = async () => ({
+      exitCode: 0,
+      stdout: '',
+      stderr: '',
+      signal: null,
+      timedOut: false,
+    })
+    const spawner = new ContainerSpawner({ runner })
+    const result = await spawner.spawn({
+      image: 'agent',
+      spec: { intent: 'chat', task_id: 't' },
+      network: 'sidecar',
+    })
+    assert.isFalse(result.envelope.ok)
+    if (!result.envelope.ok) assert.equal(result.envelope.cause, 'sidecar_missing')
+  })
+
+  test('sidecar mode: sidecar start failure surfaces as sidecar_start_failed', async ({
+    assert,
+  }) => {
+    const runner: ProcessRunner = async (_bin, args) => {
+      if (args[0] === 'run' && args.includes('-d')) {
+        return {
+          exitCode: 125,
+          stdout: '',
+          stderr: 'Unable to find image clawie/outcall:0.1.0',
+          signal: null,
+          timedOut: false,
+        }
+      }
+      return { exitCode: 0, stdout: '', stderr: '', signal: null, timedOut: false }
+    }
+    const spawner = new ContainerSpawner({ runner })
+    const result = await spawner.spawn({
+      image: 'agent',
+      spec: { intent: 'chat', task_id: 't' },
+      network: 'sidecar',
+      sidecar: { image: 'clawie/outcall:0.1.0', env: {} },
+    })
+    assert.isFalse(result.envelope.ok)
+    if (!result.envelope.ok) {
+      assert.equal(result.envelope.cause, 'sidecar_start_failed')
+      assert.match(result.envelope.detail ?? '', /Unable to find image/)
+    }
+  })
+
+  test('sidecar mode: still stops sidecar when agent run throws', async ({ assert }) => {
+    const calls: string[] = []
+    const runner: ProcessRunner = async (_bin, args) => {
+      calls.push(args[0])
+      if (args[0] === 'run' && args.includes('-d')) {
+        return { exitCode: 0, stdout: '', stderr: '', signal: null, timedOut: false }
+      }
+      if (args[0] === 'stop') {
+        return { exitCode: 0, stdout: '', stderr: '', signal: null, timedOut: false }
+      }
+      throw new Error('docker daemon disappeared')
+    }
+    const spawner = new ContainerSpawner({ runner })
+    const result = await spawner.spawn({
+      image: 'agent',
+      spec: { intent: 'chat', task_id: 't' },
+      network: 'sidecar',
+      sidecar: { image: 'clawie/outcall:0.1.0', env: {}, name: 'cleanup-test' },
+    })
+    assert.isFalse(result.envelope.ok)
+    if (!result.envelope.ok) assert.equal(result.envelope.cause, 'spawn_failed')
+    // finally block must still have run the stop
+    assert.include(calls, 'stop')
+  })
+
   test('custom dockerBin is honored', async ({ assert }) => {
     let capturedBin = ''
     const runner: ProcessRunner = async (bin) => {

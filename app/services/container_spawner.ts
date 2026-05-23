@@ -26,8 +26,21 @@ export interface ContainerTaskSpec {
 export type NetworkMode =
   /** Phase 2 default: --network=none. */
   | 'none'
-  /** Phase 3: bridge network (provider egress allowed). Phase 5 narrows this via Outcall. */
+  /** Phase 3 transitional: --network=bridge (any egress). Removed once Outcall is everywhere. */
   | 'bridge'
+  /** Phase 5: joins an Outcall sidecar's netns. Spawn lifecycle: start sidecar, run agent, stop sidecar. */
+  | 'sidecar'
+
+export interface SidecarSpec {
+  /** Image tag for the sidecar (e.g. clawie/outcall:0.1.0). */
+  image: string
+  /** Env vars handed to the sidecar (provider credentials). */
+  env: Record<string, string>
+  /** Container name. Defaults to `outcall-<random>`. */
+  name?: string
+  /** Stop timeout in seconds for `docker stop`. Default 5. */
+  stopTimeoutSec?: number
+}
 
 export interface SpawnRequest {
   image: string
@@ -38,6 +51,8 @@ export interface SpawnRequest {
   env?: Record<string, string>
   /** Network mode for this spawn. Default 'none' preserves Phase 2 sandboxing. */
   network?: NetworkMode
+  /** Required when network='sidecar'. The Outcall instance to attach. */
+  sidecar?: SidecarSpec
   /** Extra docker args inserted before the image name. */
   extraArgs?: string[]
 }
@@ -74,8 +89,33 @@ const BASE_SANDBOX_ARGS = [
   '1000:1000',
 ]
 
-function networkFlag(mode: NetworkMode): string {
-  return mode === 'none' ? '--network=none' : '--network=bridge'
+function networkFlagFor(mode: NetworkMode, sidecarName?: string): string {
+  if (mode === 'none') return '--network=none'
+  if (mode === 'bridge') return '--network=bridge'
+  // sidecar mode -- join the sidecar's netns
+  if (!sidecarName) throw new Error('sidecar mode requires a sidecar container name')
+  return `--network=container:${sidecarName}`
+}
+
+function randomSidecarName(): string {
+  return `outcall-${Math.random().toString(36).slice(2, 10)}`
+}
+
+async function stopSidecar(
+  runner: ProcessRunner,
+  bin: string,
+  name: string,
+  stopTimeoutSec = 5
+): Promise<void> {
+  // `--rm` on the sidecar means `docker stop` is enough; the container
+  // removes itself once it exits. Errors here are swallowed -- the
+  // sidecar can already be gone, and we don't want to mask the agent's
+  // result with a teardown failure.
+  try {
+    await runner(bin, ['stop', '-t', String(stopTimeoutSec), name], '', { timeoutMs: 15_000 })
+  } catch {
+    // ignore: best-effort teardown
+  }
 }
 
 export const defaultProcessRunner: ProcessRunner = (bin, args, stdin, opts) => {
@@ -130,6 +170,7 @@ export class ContainerSpawner {
     const bin = this.opts.dockerBin ?? 'docker'
     const runner = this.opts.runner ?? defaultProcessRunner
     const timeoutMs = req.timeoutMs ?? this.opts.defaultTimeoutMs ?? DEFAULT_TIMEOUT_MS
+    const networkMode = req.network ?? 'none'
 
     const envArgs: string[] = []
     if (req.env) {
@@ -138,16 +179,82 @@ export class ContainerSpawner {
       }
     }
 
+    // Sidecar lifecycle: start sidecar (-d, detached) first, then run agent
+    // attached to its netns. Always stop the sidecar in the `finally` path.
+    let sidecarName: string | undefined
+    const start = Date.now()
+    if (networkMode === 'sidecar') {
+      if (!req.sidecar) {
+        return {
+          envelope: {
+            ok: false,
+            cause: 'sidecar_missing',
+            detail: "network='sidecar' requires the sidecar field",
+          },
+          exitCode: null,
+          durationMs: 0,
+          stderr: '',
+        }
+      }
+      sidecarName = req.sidecar.name ?? randomSidecarName()
+      const sidecarEnv: string[] = []
+      for (const [k, v] of Object.entries(req.sidecar.env)) {
+        sidecarEnv.push('-e', `${k}=${v}`)
+      }
+      const sidecarArgs = [
+        'run',
+        '-d',
+        '--rm',
+        '--name',
+        sidecarName,
+        '--read-only',
+        '--tmpfs',
+        '/tmp',
+        ...sidecarEnv,
+        req.sidecar.image,
+      ]
+      try {
+        const startedSidecar = await runner(bin, sidecarArgs, '', {
+          timeoutMs: 15_000,
+          signal: req.signal,
+        })
+        if (startedSidecar.exitCode !== 0) {
+          return {
+            envelope: {
+              ok: false,
+              cause: 'sidecar_start_failed',
+              detail:
+                startedSidecar.stderr.trim().slice(0, 500) ||
+                `docker run -d exited ${startedSidecar.exitCode}`,
+            },
+            exitCode: startedSidecar.exitCode,
+            durationMs: Date.now() - start,
+            stderr: startedSidecar.stderr,
+          }
+        }
+      } catch (err) {
+        return {
+          envelope: {
+            ok: false,
+            cause: 'sidecar_start_failed',
+            detail: err instanceof Error ? err.message : String(err),
+          },
+          exitCode: null,
+          durationMs: Date.now() - start,
+          stderr: '',
+        }
+      }
+    }
+
     const args = [
       'run',
       ...BASE_SANDBOX_ARGS,
-      networkFlag(req.network ?? 'none'),
+      networkFlagFor(networkMode, sidecarName),
       ...envArgs,
       ...(req.extraArgs ?? []),
       req.image,
     ]
     const stdin = JSON.stringify(req.spec)
-    const start = Date.now()
 
     let proc: SpawnedProcess
     try {
@@ -163,6 +270,8 @@ export class ContainerSpawner {
         durationMs: Date.now() - start,
         stderr: '',
       }
+    } finally {
+      if (sidecarName) await stopSidecar(runner, bin, sidecarName, req.sidecar?.stopTimeoutSec)
     }
 
     const durationMs = Date.now() - start

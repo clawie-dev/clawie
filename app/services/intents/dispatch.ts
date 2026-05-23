@@ -1,4 +1,4 @@
-import { containerSpawner, type NetworkMode } from '#services/container_spawner'
+import { containerSpawner, type NetworkMode, type SidecarSpec } from '#services/container_spawner'
 import { auditLogger } from '#services/audit_logger'
 import { credentialBroker, type Provider } from '#services/credential_broker'
 import CostLedgerEntry from '#models/cost_ledger_entry'
@@ -20,14 +20,18 @@ import type { IntentContext, IntentHandler, IntentOutcome } from '#services/inte
  *   - chat  -> network:bridge, providers:[anthropic,openai], cost expected
  */
 
-export const AGENT_RUNTIME_IMAGE = 'clawie/agent-runtime:0.3.0'
+export const AGENT_RUNTIME_IMAGE = 'clawie/agent-runtime:0.4.0'
+export const OUTCALL_IMAGE = 'clawie/outcall:0.1.0'
+export const OUTCALL_URL_IN_AGENT = 'http://localhost:8080'
 
 export interface ContainerDispatchOptions {
   image?: string
   timeoutMs?: number
   network?: NetworkMode
-  /** Providers whose credentials should be injected into the container's env. */
+  /** Providers whose credentials should be injected (into sidecar in sidecar mode, into agent otherwise). */
   credentialProviders?: ReadonlyArray<Provider>
+  /** Sidecar image. Defaults to OUTCALL_IMAGE. Only used when network='sidecar'. */
+  sidecarImage?: string
 }
 
 interface ParsedCost {
@@ -57,9 +61,24 @@ export function containerDispatch(
       details: { image, intent: intentName, network },
     })
 
-    const env = opts.credentialProviders?.length
+    // Credentials flow into the sidecar (sidecar mode) or into the
+    // agent container directly (legacy bridge mode). The agent in
+    // sidecar mode only learns about OUTCALL_URL, not the keys.
+    const brokeredEnv = opts.credentialProviders?.length
       ? credentialBroker().envFor(opts.credentialProviders)
-      : undefined
+      : {}
+
+    let sidecar: SidecarSpec | undefined
+    let agentEnv: Record<string, string> | undefined
+    if (network === 'sidecar') {
+      sidecar = {
+        image: opts.sidecarImage ?? OUTCALL_IMAGE,
+        env: brokeredEnv,
+      }
+      agentEnv = { OUTCALL_URL: OUTCALL_URL_IN_AGENT }
+    } else if (Object.keys(brokeredEnv).length > 0) {
+      agentEnv = brokeredEnv
+    }
 
     const result = await containerSpawner().spawn({
       image,
@@ -71,7 +90,8 @@ export function containerDispatch(
       signal: ctx.signal,
       timeoutMs: opts.timeoutMs,
       network,
-      env,
+      env: agentEnv,
+      sidecar,
     })
 
     if (result.envelope.ok) {
