@@ -4,6 +4,45 @@ All notable changes to Clawie are documented here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.6.1] — Phase 6a: Outcall dashboard handoff
+
+The dashboard gains an **Egress** tab. When the active `EgressProvider`
+is Outcall, the controller calls the daemon's host API and the tab
+renders:
+
+- Daemon panel — bridge name, up/down, nftables active, proxy URL.
+- Proxy counters — active connections, total requests, total blocked,
+  block-rate %.
+- Active rules — id, action (allow/block badge), CEL condition
+  preview, source file.
+
+When `CLAWIE_EGRESS` is unset / `null` the tab renders an empty state
+with a hint to set the env. When the provider is `outcall` but the
+daemon is unreachable, the tab shows the error string and the rest of
+the dashboard keeps working — one bad downstream doesn't take down the
+whole page.
+
+### Added
+
+- **`OutcallApiClient`** — `app/services/egress/api_client.ts`. Read-only wrapper over the host API at `/run/outcall/host.sock`. Three typed methods: `bridgeStatus()`, `rulesList()`, `proxyStatus()`. Reuses the `unixSocketRequest` helper from v0.5.2.
+- **`EgressTab` React component** — `inertia/pages/dashboard/index.tsx`. New tab in the dashboard, fed a single discriminated-union prop (`{active: false}` or `{active: true, bridge, rules, proxy}`).
+- **`DashboardController.loadEgressData()`** — branches on the active provider's `name`. Outcall path runs three reads in parallel via `Promise.all`. Failures degrade to `{active: false, error}` (logged + UI-surfaced); they don't propagate to the rest of the dashboard.
+- **Tests** — 6 new `OutcallApiClient` tests against a fake outcalld served over a temp Unix socket (happy paths for each endpoint, non-200 status, envelope `success: false`, unreachable socket). 120 total.
+
+### Changed
+
+- Polling reload now includes `egress` in the `only:` set so the tab refreshes every 5s along with the others.
+- Dashboard prop shape gains the discriminated-union `egress` field.
+
+### Upstream PRs
+
+None this release. The three endpoints Phase 6a needs (`/api/v1/bridge`, `/api/v1/rules`, `/api/v1/proxy`) already exist in Outcall v0.1.7+. A real-time block-event stream (e.g. `GET /api/v1/proxy/events` over server-sent events or WebSocket) would benefit any UI consumer; if/when we add live "agent X just got blocked reaching Y" notifications, that's the candidate for an upstream PR. Out of scope for v0.6.1.
+
+### Spec alignment
+
+- Spec 022 (web dashboard) — second iteration.
+- Spec 002 (container runtime + outcall) — consumer-side dashboard.
+
 ## [0.6.0] — Phase 6: Dashboard MVP
 
 First UI. `GET /dashboard` renders a React + Inertia page with three
@@ -309,7 +348,8 @@ These are P0 for later phases, not v0.1.0:
 - Scheduler + crons (Phase 9 / spec 027)
 - Backup/DR, upgrades, webhooks, marketplace (Phase 10 / specs 028, 029, 030, 024)
 
-[Unreleased]: https://github.com/clawie-dev/clawie/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/clawie-dev/clawie/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/clawie-dev/clawie/releases/tag/v0.6.1
 [0.6.0]: https://github.com/clawie-dev/clawie/releases/tag/v0.6.0
 [0.5.2]: https://github.com/clawie-dev/clawie/releases/tag/v0.5.2
 [0.5.1]: https://github.com/clawie-dev/clawie/releases/tag/v0.5.1

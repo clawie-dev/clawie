@@ -1,10 +1,13 @@
 // @no-test: AdonisJS controller-as-glue covered by tests/functional/dashboard.test.ts
 // (a future addition); read-only views over models that already have unit-test mirrors.
 import type { HttpContext } from '@adonisjs/core/http'
+import logger from '@adonisjs/core/services/logger'
 import { DateTime } from 'luxon'
 import Task from '#models/task'
 import Approval from '#models/approval'
 import AuditEvent from '#models/audit_event'
+import { egressProvider } from '#services/egress/provider'
+import { OutcallApiClient } from '#services/egress/api_client'
 
 /**
  * Phase 6 dashboard. Renders three sections in a single React page:
@@ -26,11 +29,13 @@ export default class DashboardController {
     ])
 
     const taskById = new Map(tasks.map((t) => [t.id, t]))
+    const egress = await loadEgressData()
 
     const props = {
       tasks: tasks.map(serializeTask),
       approvals: approvals.map((a) => serializeApproval(a, taskById.get(a.taskId))),
       audit: events.map(serializeEvent),
+      egress,
       now: DateTime.utc().toISO(),
     }
     // The page name + prop shape is enforced by `inertia/pages/dashboard/index.tsx`'s
@@ -92,5 +97,81 @@ function summarisePayload(payload: unknown): string {
     return json.slice(0, 80) + (json.length > 80 ? '…' : '')
   } catch {
     return String(payload).slice(0, 80)
+  }
+}
+
+type EgressData =
+  | { active: false; providerName: string }
+  | {
+      active: true
+      providerName: 'outcall'
+      bridge: { name: string; up: boolean; nftablesActive: boolean }
+      rules: Array<{
+        id: string
+        file: string
+        action: string
+        conditionPreview: string
+        description: string | null
+      }>
+      proxy: {
+        running: boolean
+        listenAddress: string
+        proxyUrl: string
+        activeConnections: number
+        totalRequests: number
+        totalBlocked: number
+      }
+    }
+  | { active: false; providerName: string; error: string }
+
+/**
+ * When the active EgressProvider is Outcall, fetch the read-side state
+ * from `/run/outcall/host.sock`. Any failure (daemon down, socket
+ * permission, parse error) degrades to an `active: false` shape with
+ * an error string so the UI can show "Outcall configured but
+ * unreachable" instead of breaking the whole dashboard.
+ */
+async function loadEgressData(): Promise<EgressData> {
+  const provider = egressProvider()
+  if (provider.name !== 'outcall') {
+    return { active: false, providerName: provider.name }
+  }
+
+  const socketPath = process.env.OUTCALL_HOST_SOCKET ?? '/run/outcall/host.sock'
+  const client = new OutcallApiClient(socketPath)
+  try {
+    const [bridge, rules, proxy] = await Promise.all([
+      client.bridgeStatus(),
+      client.rulesList(),
+      client.proxyStatus(),
+    ])
+    return {
+      active: true,
+      providerName: 'outcall',
+      bridge: {
+        name: bridge.name,
+        up: bridge.up,
+        nftablesActive: bridge.nftables_active,
+      },
+      rules: rules.map((r) => ({
+        id: r.id,
+        file: r.file,
+        action: r.action,
+        conditionPreview: r.condition_preview,
+        description: r.description,
+      })),
+      proxy: {
+        running: proxy.running,
+        listenAddress: proxy.listen_address,
+        proxyUrl: proxy.proxy_url,
+        activeConnections: proxy.active_connections,
+        totalRequests: proxy.total_requests,
+        totalBlocked: proxy.total_blocked,
+      },
+    }
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err)
+    logger.warn({ socketPath, error: detail }, 'dashboard: failed to read Outcall state')
+    return { active: false, providerName: 'outcall', error: detail }
   }
 }

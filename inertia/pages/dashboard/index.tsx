@@ -34,14 +34,38 @@ interface AuditEvent {
   createdAt: string
 }
 
+type EgressData =
+  | { active: false; providerName: string; error?: string }
+  | {
+      active: true
+      providerName: 'outcall'
+      bridge: { name: string; up: boolean; nftablesActive: boolean }
+      rules: Array<{
+        id: string
+        file: string
+        action: string
+        conditionPreview: string
+        description: string | null
+      }>
+      proxy: {
+        running: boolean
+        listenAddress: string
+        proxyUrl: string
+        activeConnections: number
+        totalRequests: number
+        totalBlocked: number
+      }
+    }
+
 interface DashboardProps {
   tasks: Task[]
   approvals: Approval[]
   audit: AuditEvent[]
+  egress: EgressData
   now: string
 }
 
-type Tab = 'tasks' | 'approvals' | 'audit'
+type Tab = 'tasks' | 'approvals' | 'audit' | 'egress'
 
 const POLL_MS = 5_000
 
@@ -50,7 +74,7 @@ const Dashboard: React.FC<DashboardProps> = (props) => {
 
   useEffect(() => {
     const id = setInterval(() => {
-      router.reload({ only: ['tasks', 'approvals', 'audit', 'now'] })
+      router.reload({ only: ['tasks', 'approvals', 'audit', 'egress', 'now'] })
     }, POLL_MS)
     return () => clearInterval(id)
   }, [])
@@ -75,11 +99,15 @@ const Dashboard: React.FC<DashboardProps> = (props) => {
         <TabButton current={tab} target="audit" onClick={setTab}>
           Audit ({props.audit.length})
         </TabButton>
+        <TabButton current={tab} target="egress" onClick={setTab}>
+          Egress ({props.egress.active ? props.egress.rules.length : '—'})
+        </TabButton>
       </nav>
 
       {tab === 'approvals' && <ApprovalsTab approvals={props.approvals} now={props.now} />}
       {tab === 'tasks' && <TasksTab tasks={props.tasks} />}
       {tab === 'audit' && <AuditTab audit={props.audit} />}
+      {tab === 'egress' && <EgressTab egress={props.egress} />}
     </div>
   )
 }
@@ -280,6 +308,117 @@ function AuditTab({ audit }: { audit: AuditEvent[] }) {
   )
 }
 
+function EgressTab({ egress }: { egress: EgressData }) {
+  if (!egress.active) {
+    const hint =
+      egress.providerName === 'null'
+        ? 'Set CLAWIE_EGRESS=outcall and run an outcalld daemon to populate this view.'
+        : `Provider configured as "${egress.providerName}" but unreachable.${egress.error ? ` Error: ${egress.error}` : ''}`
+    return <div style={styles.empty}>{hint}</div>
+  }
+
+  const blockRate =
+    egress.proxy.totalRequests > 0
+      ? ((egress.proxy.totalBlocked / egress.proxy.totalRequests) * 100).toFixed(1)
+      : '0.0'
+
+  return (
+    <div>
+      <section style={styles.egressSection}>
+        <h3 style={styles.h3}>Daemon</h3>
+        <div style={styles.metricRow}>
+          <Metric
+            label="Bridge"
+            value={egress.bridge.name}
+            tone={egress.bridge.up ? 'ok' : 'warn'}
+          />
+          <Metric label="Up" value={egress.bridge.up ? 'yes' : 'no'} tone={egress.bridge.up ? 'ok' : 'warn'} />
+          <Metric
+            label="nftables"
+            value={egress.bridge.nftablesActive ? 'active' : 'inactive'}
+            tone={egress.bridge.nftablesActive ? 'ok' : 'warn'}
+          />
+          <Metric label="Proxy" value={egress.proxy.proxyUrl} />
+        </div>
+      </section>
+
+      <section style={styles.egressSection}>
+        <h3 style={styles.h3}>Proxy counters</h3>
+        <div style={styles.metricRow}>
+          <Metric label="Active connections" value={String(egress.proxy.activeConnections)} />
+          <Metric label="Total requests" value={String(egress.proxy.totalRequests)} />
+          <Metric
+            label="Total blocked"
+            value={String(egress.proxy.totalBlocked)}
+            tone={egress.proxy.totalBlocked > 0 ? 'warn' : 'ok'}
+          />
+          <Metric label="Block rate" value={`${blockRate}%`} />
+        </div>
+      </section>
+
+      <section style={styles.egressSection}>
+        <h3 style={styles.h3}>Active rules ({egress.rules.length})</h3>
+        {egress.rules.length === 0 ? (
+          <div style={styles.empty}>
+            No rules loaded. Drop a preset into <code>/etc/outcall/rules.d/</code> and run{' '}
+            <code>outcall rules reload</code>.
+          </div>
+        ) : (
+          <table style={styles.table}>
+            <thead>
+              <tr>
+                <th style={styles.th}>Action</th>
+                <th style={styles.th}>ID</th>
+                <th style={styles.th}>Condition</th>
+                <th style={styles.th}>File</th>
+              </tr>
+            </thead>
+            <tbody>
+              {egress.rules.map((r) => (
+                <tr key={r.id}>
+                  <td style={styles.td}>
+                    <ActionBadge action={r.action} />
+                  </td>
+                  <td style={styles.td}>
+                    <code>{r.id}</code>
+                  </td>
+                  <td style={styles.td}>
+                    <code style={styles.payload}>{r.conditionPreview}</code>
+                  </td>
+                  <td style={styles.td}>
+                    <code style={styles.payload}>{r.file.split('/').pop()}</code>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+    </div>
+  )
+}
+
+function Metric({ label, value, tone }: { label: string; value: string; tone?: 'ok' | 'warn' }) {
+  return (
+    <div style={styles.metric}>
+      <div style={styles.metricLabel}>{label}</div>
+      <div
+        style={{
+          ...styles.metricValue,
+          color: tone === 'warn' ? '#a33' : tone === 'ok' ? '#3a7' : '#222',
+        }}
+      >
+        {value}
+      </div>
+    </div>
+  )
+}
+
+function ActionBadge({ action }: { action: string }) {
+  const color = action === 'allow' ? '#3a7' : action === 'block' ? '#a33' : '#888'
+  return <span style={{ ...styles.badge, backgroundColor: color }}>{action}</span>
+}
+
 function StatusBadge({ status }: { status: string }) {
   const color = STATUS_COLOR[status] ?? '#888'
   return <span style={{ ...styles.badge, backgroundColor: color }}>{status}</span>
@@ -370,4 +509,16 @@ const styles: Record<string, React.CSSProperties> = {
   approve: { background: '#3a7' },
   deny: { background: '#a33' },
   empty: { padding: 24, textAlign: 'center' as const, color: '#888' },
+  egressSection: { marginBottom: 24 },
+  h3: { fontSize: 14, color: '#666', margin: '0 0 8px', fontWeight: 600 },
+  metricRow: { display: 'flex', gap: 16, flexWrap: 'wrap' },
+  metric: {
+    padding: '8px 12px',
+    border: '1px solid #eee',
+    borderRadius: 4,
+    minWidth: 140,
+    background: '#fafafa',
+  },
+  metricLabel: { fontSize: 11, color: '#888', textTransform: 'uppercase' as const, marginBottom: 2 },
+  metricValue: { fontSize: 14, fontWeight: 600 },
 }
