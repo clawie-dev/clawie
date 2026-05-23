@@ -81,7 +81,10 @@ export function containerDispatch(
       env: env && Object.keys(env).length > 0 ? env : undefined,
     }
 
-    const decoratedRequest = await egressProvider().wrap(baseRequest, { intentName })
+    const decoratedRequest = await egressProvider().wrap(baseRequest, {
+      intentName,
+      teamSlug: ctx.teamSlug ?? null,
+    })
     const result = await containerSpawner().spawn(decoratedRequest)
 
     if (result.envelope.ok) {

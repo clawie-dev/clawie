@@ -2,6 +2,8 @@ export interface IntentContext {
   taskId: string
   payload: unknown
   signal?: AbortSignal
+  /** Phase 8: when set, the dispatch layer uses team-scoped egress. */
+  teamSlug?: string | null
 }
 
 export interface IntentResult {

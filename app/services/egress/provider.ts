@@ -27,6 +27,8 @@ import type { SpawnRequest } from '#services/container_spawner'
 export interface EgressProviderContext {
   /** The intent name being dispatched. Lets providers scope rules per intent. */
   intentName: string
+  /** Phase 8: optional team slug. Outcall provider uses it to pick a per-team network. */
+  teamSlug?: string | null
 }
 
 export interface EgressProvider {

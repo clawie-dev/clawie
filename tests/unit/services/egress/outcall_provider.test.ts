@@ -169,6 +169,37 @@ test.group('services/egress/outcall_provider', () => {
     assert.equal(args[volIdx + 1], '/run/outcall/agent.sock:/run/outcall/agent.sock')
   })
 
+  test('wrap honors teamSlug: per-team network + name prefix', async ({ assert }) => {
+    const provider = new OutcallEgressProvider({ networkName: 'clawie' })
+    const wrapped = await provider.wrap(
+      {
+        image: 'clawie/agent-runtime:0.4.1',
+        spec: { intent: 'chat', task_id: 't', payload: null },
+      },
+      { intentName: 'chat', teamSlug: 'engineering' }
+    )
+    assert.equal(wrapped.customNetworkName, 'outcall-clawie-team-engineering')
+    const args = wrapped.extraArgs ?? []
+    const nameIdx = args.indexOf('--name')
+    assert.notEqual(nameIdx, -1)
+    assert.match(args[nameIdx + 1] ?? '', /^clawie-engineering-chat-[a-f0-9]{8}$/)
+  })
+
+  test('wrap without teamSlug uses base network + base name', async ({ assert }) => {
+    const provider = new OutcallEgressProvider({ networkName: 'clawie' })
+    const wrapped = await provider.wrap(
+      {
+        image: 'clawie/agent-runtime:0.4.1',
+        spec: { intent: 'chat', task_id: 't', payload: null },
+      },
+      { intentName: 'chat' }
+    )
+    assert.equal(wrapped.customNetworkName, 'outcall-clawie')
+    const args = wrapped.extraArgs ?? []
+    const nameIdx = args.indexOf('--name')
+    assert.match(args[nameIdx + 1] ?? '', /^clawie-chat-[a-f0-9]{8}$/)
+  })
+
   test('wrap with no mountAgentSocket leaves no -v mount', async ({ assert }) => {
     const provider = new OutcallEgressProvider({})
     const wrapped = await provider.wrap(

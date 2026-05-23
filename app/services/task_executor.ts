@@ -31,6 +31,7 @@ export class TaskExecutor {
       const outcome = await handler({
         taskId: running.id,
         payload: running.parsedPayload,
+        teamSlug: running.teamSlug ?? null,
       })
       if (outcome.ok) {
         return sm.complete(taskId, workerId, outcome.output)

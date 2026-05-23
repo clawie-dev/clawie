@@ -54,6 +54,8 @@ export interface CreateTaskInput {
   idempotencyKey?: string | null
   actor?: string
   approvalWindowMs?: number
+  /** Phase 8: tasks scoped to a team get team-isolated egress (Outcall network). */
+  teamSlug?: string | null
 }
 
 export interface ClaimInput {
@@ -103,6 +105,7 @@ export class TaskStateMachine {
       idempotencyKey: input.idempotencyKey ?? null,
       status: initialStatus,
       version: 0,
+      teamSlug: input.teamSlug ?? null,
       failureCause: decision.decision === 'deny' ? 'policy_denied' : null,
       failureDetail: decision.decision === 'deny' ? decision.reason : null,
       finishedAt: decision.decision === 'deny' ? DateTime.utc() : null,

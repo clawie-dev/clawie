@@ -57,6 +57,9 @@ export default class Task extends BaseModel {
   @column()
   declare version: number
 
+  @column()
+  declare teamSlug: string | null
+
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime
 

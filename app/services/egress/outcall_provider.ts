@@ -127,10 +127,22 @@ export class OutcallEgressProvider implements EgressProvider {
    * Outcall is purely a network filter -- it does NOT inject creds.
    */
   async wrap(req: SpawnRequest, ctx: EgressProviderContext): Promise<SpawnRequest> {
-    const networkName = this.config.networkName ?? 'clawie'
+    // Phase 8: when the dispatch context carries a teamSlug, the agent
+    // joins the team's dedicated network (`outcall-clawie-team-<slug>`)
+    // instead of the shared `outcall-clawie`. Cross-team L2 isolation
+    // is structural: a hostile agent in team A's bridge cannot reach
+    // team B's bridge regardless of any rule misconfiguration.
+    const baseNetworkName = this.config.networkName ?? 'clawie'
+    const networkName = ctx.teamSlug ? `${baseNetworkName}-team-${ctx.teamSlug}` : baseNetworkName
     const gateway = this.config.gateway ?? '10.200.0.1'
     const proxyUrl = `http://${gateway}:8080`
-    const containerName = `clawie-${ctx.intentName}-${randomBytes(4).toString('hex')}`
+    // Container name carries the team slug too, so Outcall's `agent.name`
+    // rule binding resolves to `clawie-<team>-<intent>` (after stripping
+    // the trailing replica suffix), letting rules scope on team.
+    const namePrefix = ctx.teamSlug
+      ? `clawie-${ctx.teamSlug}-${ctx.intentName}`
+      : `clawie-${ctx.intentName}`
+    const containerName = `${namePrefix}-${randomBytes(4).toString('hex')}`
 
     const extraArgs = [...(req.extraArgs ?? []), '--dns', gateway, '--name', containerName]
 

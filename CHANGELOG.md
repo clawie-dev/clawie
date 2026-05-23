@@ -4,6 +4,37 @@ All notable changes to Clawie are documented here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.8.0] — Phase 8: Teams + Multi-Agent
+
+Agents group into Teams. Each team gets a dedicated Outcall network
+(`outcall-clawie-team-<slug>`) when `CLAWIE_EGRESS=outcall`, so cross-
+team isolation is *structural* (separate L2 bridges) — not just
+policy-enforced. Tasks scoped to a team carry a `teamSlug`; the
+dispatch path forwards it through to the egress provider, which uses
+it for both the network attachment and the container name (so
+Outcall's `agent.name` rule binding resolves to `clawie-<team>-<intent>`).
+
+### Added
+
+- **`Team` model + migration** — slug (unique, DNS-safe), name, description.
+- **`TeamMember` model + migration** — agent ↔ team association with `role` (member|lead). `(team_id, agent_name)` is unique.
+- **`Task.teamSlug`** column — optional team scoping. `CreateTaskInput.teamSlug` flows through.
+- **`IntentContext.teamSlug`** field — the executor pulls it from the task and passes it to the handler.
+- **`EgressProviderContext.teamSlug`** field — the `OutcallEgressProvider` reads it and picks the per-team network + container name prefix.
+- **`teams:create` CLI** — `node ace teams:create <slug> [--name '...'] [--description '...']`. Slug validated as DNS-safe.
+- **Tests** — 2 Team model, 2 TeamMember model, 2 team-aware outcall wrap. 140 total (+6 vs v0.7.1).
+
+### Spec alignment
+
+- Spec 013 (team orchestration) — first iteration.
+- Spec 014 (inter-agent comms) — model only; messaging primitive comes in Phase 8a.
+
+### What's deliberately deferred
+
+- **Inter-agent comms / tickets.** Not implemented yet. Phase 8a or follow-up.
+- **Per-team budgets.** Cost ledger doesn't filter by team yet. Phase 8a.
+- **Outcall rule packs per team.** v0.5.2 `clawie-default.yaml` rule pack is team-agnostic; per-team packs are an operator workflow until Phase 8a builds the ergonomics.
+
 ## [0.7.1] — Phase 7a: Outcall agent-shim integration (docs)
 
 Phase 7a center of gravity is in `clawie/agent-runtime` v0.5.0
@@ -397,7 +428,8 @@ These are P0 for later phases, not v0.1.0:
 - Scheduler + crons (Phase 9 / spec 027)
 - Backup/DR, upgrades, webhooks, marketplace (Phase 10 / specs 028, 029, 030, 024)
 
-[Unreleased]: https://github.com/clawie-dev/clawie/compare/v0.7.1...HEAD
+[Unreleased]: https://github.com/clawie-dev/clawie/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/clawie-dev/clawie/releases/tag/v0.8.0
 [0.7.1]: https://github.com/clawie-dev/clawie/releases/tag/v0.7.1
 [0.7.0]: https://github.com/clawie-dev/clawie/releases/tag/v0.7.0
 [0.6.1]: https://github.com/clawie-dev/clawie/releases/tag/v0.6.1
