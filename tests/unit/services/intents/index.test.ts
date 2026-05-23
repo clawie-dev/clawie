@@ -8,16 +8,17 @@ test.group('services/intents/index', (group) => {
     return () => resetIntentsForTest()
   })
 
-  test('registerBuiltinIntents registers echo and chat', async ({ assert }) => {
+  test('registerBuiltinIntents registers echo, chat, and agent.self_mod', async ({ assert }) => {
     registerBuiltinIntents()
     assert.isTrue(intentRegistry().has('echo'))
     assert.isTrue(intentRegistry().has('chat'))
+    assert.isTrue(intentRegistry().has('agent.self_mod'))
   })
 
   test('registerBuiltinIntents is idempotent', async ({ assert }) => {
     registerBuiltinIntents()
     registerBuiltinIntents()
     registerBuiltinIntents()
-    assert.deepEqual(intentRegistry().list(), ['chat', 'echo'])
+    assert.deepEqual(intentRegistry().list(), ['agent.self_mod', 'chat', 'echo'])
   })
 })

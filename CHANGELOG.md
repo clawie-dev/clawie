@@ -4,6 +4,35 @@ All notable changes to Clawie are documented here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.7.0] — Phase 7: Agent Files + Self-Mod
+
+Agents are first-class. An agent lives in a directory with three
+files (SOUL.md, AGENTS.yaml, TOOLS.yaml); `agents:load <dir>` reads
+the directory and upserts an `AgentDefinition` row. Agents propose
+changes to their own files via the `agent.self_mod` intent — the
+proposal is recorded as an `AgentModification` row in `pending`
+state and surfaces in the dashboard's new Self-Mods tab.
+
+### Added
+
+- **`AgentDefinition` model + migration.** Persisted snapshot of an agent: name (unique), raw `SOUL.md` / `AGENTS.yaml` / `TOOLS.yaml`, sourcePath, loadedAt.
+- **`AgentModification` model + migration.** One row per self-mod proposal: agentName, taskId (unique), status (pending/applied/rejected), unified diff, structured proposed changes (JSON), decidedBy/At/reason.
+- **`AgentLoader`** — `app/services/agent_loader.ts`. Reads the three files from a directory, upserts a definition. Raw text preserved verbatim; parsing into structured fields is deferred so we can rev the YAML schema without re-reading from disk.
+- **`agent.self_mod` intent** — `app/services/intents/agent_self_mod.ts`. In-process (no container roundtrip). Validates payload (allowed paths only: SOUL.md / AGENTS.yaml / TOOLS.yaml), builds a minimal diff against the current snapshot, persists. Returns the diff in the envelope output.
+- **`agents:load` CLI** — `node ace agents:load <directory>` loads or refreshes an agent.
+- **Dashboard Self-Mods tab.** 5th tab, shows pending + recent agent modifications with their diffs.
+- **Tests** — 4 loader tests, 2 AgentDefinition model tests, 3 AgentModification model tests, 5 self-mod intent tests. 134 total (+14 vs v0.6.1).
+
+### Spec alignment
+
+- Spec 008 (agent files: SOUL/AGENTS/TOOLS).
+- Spec 009 (self-modifications surface for human review) — leans on Phase 4's approval primitives for the human-review pattern.
+
+### What's deliberately deferred
+
+- **Apply step.** Approving a modification currently only changes its status; writing the new content back to disk is Phase 7a or Phase 8 (when git-backed sync lands).
+- **YAML parsing.** AGENTS.yaml's cron schedule + TOOLS.yaml's permissions are *stored* but not yet *consumed*. Phase 9 (scheduler) reads schedules; Phase 7a wires permissions into Outcall's shim.
+
 ## [0.6.1] — Phase 6a: Outcall dashboard handoff
 
 The dashboard gains an **Egress** tab. When the active `EgressProvider`
@@ -348,7 +377,8 @@ These are P0 for later phases, not v0.1.0:
 - Scheduler + crons (Phase 9 / spec 027)
 - Backup/DR, upgrades, webhooks, marketplace (Phase 10 / specs 028, 029, 030, 024)
 
-[Unreleased]: https://github.com/clawie-dev/clawie/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/clawie-dev/clawie/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/clawie-dev/clawie/releases/tag/v0.7.0
 [0.6.1]: https://github.com/clawie-dev/clawie/releases/tag/v0.6.1
 [0.6.0]: https://github.com/clawie-dev/clawie/releases/tag/v0.6.0
 [0.5.2]: https://github.com/clawie-dev/clawie/releases/tag/v0.5.2

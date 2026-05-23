@@ -57,15 +57,28 @@ type EgressData =
       }
     }
 
+interface AgentModification {
+  id: number
+  agentName: string
+  taskId: string
+  status: 'pending' | 'applied' | 'rejected'
+  paths: string[]
+  diff: string
+  createdAt: string
+  decidedBy: string | null
+  reason: string | null
+}
+
 interface DashboardProps {
   tasks: Task[]
   approvals: Approval[]
   audit: AuditEvent[]
+  modifications: AgentModification[]
   egress: EgressData
   now: string
 }
 
-type Tab = 'tasks' | 'approvals' | 'audit' | 'egress'
+type Tab = 'tasks' | 'approvals' | 'audit' | 'egress' | 'mods'
 
 const POLL_MS = 5_000
 
@@ -74,7 +87,9 @@ const Dashboard: React.FC<DashboardProps> = (props) => {
 
   useEffect(() => {
     const id = setInterval(() => {
-      router.reload({ only: ['tasks', 'approvals', 'audit', 'egress', 'now'] })
+      router.reload({
+        only: ['tasks', 'approvals', 'audit', 'modifications', 'egress', 'now'],
+      })
     }, POLL_MS)
     return () => clearInterval(id)
   }, [])
@@ -102,12 +117,16 @@ const Dashboard: React.FC<DashboardProps> = (props) => {
         <TabButton current={tab} target="egress" onClick={setTab}>
           Egress ({props.egress.active ? props.egress.rules.length : '—'})
         </TabButton>
+        <TabButton current={tab} target="mods" onClick={setTab}>
+          Self-Mods ({props.modifications.filter((m) => m.status === 'pending').length})
+        </TabButton>
       </nav>
 
       {tab === 'approvals' && <ApprovalsTab approvals={props.approvals} now={props.now} />}
       {tab === 'tasks' && <TasksTab tasks={props.tasks} />}
       {tab === 'audit' && <AuditTab audit={props.audit} />}
       {tab === 'egress' && <EgressTab egress={props.egress} />}
+      {tab === 'mods' && <ModsTab modifications={props.modifications} />}
     </div>
   )
 }
@@ -306,6 +325,53 @@ function AuditTab({ audit }: { audit: AuditEvent[] }) {
       </tbody>
     </table>
   )
+}
+
+function ModsTab({ modifications }: { modifications: AgentModification[] }) {
+  if (modifications.length === 0) {
+    return (
+      <div style={styles.empty}>
+        No agent modifications. Run an <code>agent.self_mod</code> intent to propose changes.
+      </div>
+    )
+  }
+  return (
+    <table style={styles.table}>
+      <thead>
+        <tr>
+          <th style={styles.th}>Agent</th>
+          <th style={styles.th}>Files</th>
+          <th style={styles.th}>Status</th>
+          <th style={styles.th}>Created</th>
+          <th style={styles.th}>Diff</th>
+        </tr>
+      </thead>
+      <tbody>
+        {modifications.map((m) => (
+          <tr key={m.id}>
+            <td style={styles.td}>
+              <code>{m.agentName}</code>
+            </td>
+            <td style={styles.td}>
+              <code style={styles.payload}>{m.paths.join(', ')}</code>
+            </td>
+            <td style={styles.td}>
+              <ModStatusBadge status={m.status} />
+            </td>
+            <td style={styles.td}>{fmtTime(m.createdAt)}</td>
+            <td style={styles.td}>
+              <pre style={styles.diff}>{m.diff}</pre>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
+function ModStatusBadge({ status }: { status: string }) {
+  const color = status === 'applied' ? '#3a7' : status === 'rejected' ? '#a33' : '#c93'
+  return <span style={{ ...styles.badge, backgroundColor: color }}>{status}</span>
 }
 
 function EgressTab({ egress }: { egress: EgressData }) {
@@ -521,4 +587,14 @@ const styles: Record<string, React.CSSProperties> = {
   },
   metricLabel: { fontSize: 11, color: '#888', textTransform: 'uppercase' as const, marginBottom: 2 },
   metricValue: { fontSize: 14, fontWeight: 600 },
+  diff: {
+    margin: 0,
+    fontSize: 11,
+    fontFamily: 'monospace',
+    background: '#fafafa',
+    padding: 8,
+    borderRadius: 3,
+    maxWidth: 400,
+    overflow: 'auto' as const,
+  },
 }

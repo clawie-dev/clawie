@@ -6,6 +6,7 @@ import { DateTime } from 'luxon'
 import Task from '#models/task'
 import Approval from '#models/approval'
 import AuditEvent from '#models/audit_event'
+import AgentModification from '#models/agent_modification'
 import { egressProvider } from '#services/egress/provider'
 import { OutcallApiClient } from '#services/egress/api_client'
 
@@ -22,10 +23,11 @@ import { OutcallApiClient } from '#services/egress/api_client'
  */
 export default class DashboardController {
   async index({ inertia }: HttpContext) {
-    const [tasks, approvals, events] = await Promise.all([
+    const [tasks, approvals, events, mods] = await Promise.all([
       Task.query().orderBy('created_at', 'desc').limit(50),
       Approval.query().where('status', 'pending').orderBy('requested_at', 'asc'),
       AuditEvent.query().orderBy('id', 'desc').limit(100),
+      AgentModification.query().orderBy('created_at', 'desc').limit(50),
     ])
 
     const taskById = new Map(tasks.map((t) => [t.id, t]))
@@ -35,6 +37,7 @@ export default class DashboardController {
       tasks: tasks.map(serializeTask),
       approvals: approvals.map((a) => serializeApproval(a, taskById.get(a.taskId))),
       audit: events.map(serializeEvent),
+      modifications: mods.map(serializeModification),
       egress,
       now: DateTime.utc().toISO(),
     }
@@ -86,6 +89,20 @@ function serializeEvent(e: AuditEvent) {
     reason: e.reason,
     details: e.parsedDetails,
     createdAt: e.createdAt.toISO(),
+  }
+}
+
+function serializeModification(m: AgentModification) {
+  return {
+    id: m.id,
+    agentName: m.agentName,
+    taskId: m.taskId,
+    status: m.status,
+    paths: m.parsedChanges.map((c) => c.path),
+    diff: m.diff,
+    createdAt: m.createdAt instanceof DateTime ? m.createdAt.toISO() : m.createdAt,
+    decidedBy: m.decidedBy,
+    reason: m.reason,
   }
 }
 

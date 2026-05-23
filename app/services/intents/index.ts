@@ -1,5 +1,6 @@
 import { intentRegistry } from '#services/intents/registry'
 import { containerDispatch } from '#services/intents/dispatch'
+import { agentSelfModIntent } from '#services/intents/agent_self_mod'
 
 let registeredFlag = false
 
@@ -26,6 +27,11 @@ export function registerBuiltinIntents(): void {
         timeoutMs: 120_000,
       })
     )
+  }
+  // Phase 7: agent self-modifications run in-process -- they only touch
+  // Clawie's DB to record a proposal. No container roundtrip needed.
+  if (!reg.has('agent.self_mod')) {
+    reg.register('agent.self_mod', agentSelfModIntent)
   }
   registeredFlag = true
 }
