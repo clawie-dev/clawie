@@ -42,6 +42,13 @@ export interface SpawnRequest {
   env?: Record<string, string>
   /** Network mode for this spawn. Default 'none' preserves Phase 2 sandboxing. */
   network?: NetworkMode
+  /**
+   * Explicit Docker network name. When set, overrides the `network`-mode-
+   * derived flag (`--network=<name>` is used instead of `--network=none`
+   * or `--network=bridge`). The `EgressProvider` uses this to attach the
+   * agent to a managed network like `outcall-clawie`.
+   */
+  customNetworkName?: string
   /** Extra docker args inserted before the image name. */
   extraArgs?: string[]
 }
@@ -143,10 +150,14 @@ export class ContainerSpawner {
       }
     }
 
+    const networkArg = req.customNetworkName
+      ? `--network=${req.customNetworkName}`
+      : networkFlag(networkMode)
+
     const args = [
       'run',
       ...BASE_SANDBOX_ARGS,
-      networkFlag(networkMode),
+      networkArg,
       ...envArgs,
       ...(req.extraArgs ?? []),
       req.image,

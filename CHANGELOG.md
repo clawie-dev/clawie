@@ -4,6 +4,54 @@ All notable changes to Clawie are documented here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.5.2] — Phase 5b: Outcall connector
+
+Real `OutcallEgressProvider`. When the operator sets `CLAWIE_EGRESS=outcall`,
+Clawie boot probes the Outcall daemon at `/run/outcall/host.sock`, ensures
+the `outcall-clawie` network exists, and attaches every spawned agent
+container to it. Outcall enforces egress at L3 (nftables) + L4 (DNS filter)
++ L7 (HTTPS_PROXY-driven HTTP proxy). If the daemon is unreachable, the
+provider logs and degrades to null so Clawie still starts.
+
+### Added
+
+- **`OutcallEgressProvider`** — `app/services/egress/outcall_provider.ts`. Implements the Phase 5 `EgressProvider` interface. Constructor takes `hostSocketPath`, `networkName`, `gateway`, and `mountAgentSocket` (defaults match Outcall's quickstart). `bootstrap()` does `GET /api/v1/bridge` → assert up + nftables active → `POST /api/v1/network/create`. `wrap()` decorates the `SpawnRequest` with `customNetworkName=outcall-<networkName>`, `--dns <gateway>`, container name `clawie-<intent>-<8-hex>`, and `HTTP(S)_PROXY=http://<gateway>:8080`.
+- **`unixSocketRequest`** — `app/services/egress/unix_socket_client.ts`. Minimal HTTP-over-Unix-socket client over `node:http` (no extra dep). Outcall's host API uses Unix sockets; Node 24's `fetch` doesn't expose `socketPath`, so we go through `http.request` directly.
+- **`selectEgressProviderFromEnv()`** — `app/services/egress/index.ts`. Boot-time provider selection from `CLAWIE_EGRESS`. Defaults to null. `outcall` instantiates the Outcall provider and bootstraps; degrades on failure.
+- **`EgressProvider` AdonisJS provider** — `providers/egress_provider.ts`. Registers in `adonisrc.ts` after `api_provider`. Runs `selectEgressProviderFromEnv()` on `ready()` and installs the result into the singleton.
+- **`customNetworkName`** field on `SpawnRequest` — when set, overrides the `network`-mode-derived flag (`--network=<name>` instead of `--network=none` / `--network=bridge`). This is the seam any custom-network egress provider needs.
+- **Companion preset** — `clawie-dev/outcall-presets/presets/clawie-default.yaml`. Allow rules for `chat` intent (Anthropic + OpenAI) keyed on `agent.name == "clawie-chat"`. Operator drops it in `/etc/outcall/rules.d/` and runs `outcall rules reload`.
+- **Tests** — 6 OutcallEgressProvider tests (real Unix-socket server on a temp socket), 4 provider-selection tests, 1 spawner customNetworkName test. 114 total (+11 vs v0.5.1).
+
+### Changed
+
+- `ContainerSpawner.spawn()` honors `customNetworkName` if present, otherwise falls back to `networkFlag(network)`. No change to existing callers.
+
+### Configuration
+
+| Env var | Default | Purpose |
+|---|---|---|
+| `CLAWIE_EGRESS` | `null` | `null` (default, no isolation) or `outcall` (consume the daemon). |
+| `OUTCALL_HOST_SOCKET` | `/run/outcall/host.sock` | Path to outcalld's host API socket. |
+| `OUTCALL_NETWORK` | `clawie` | Network suffix; full Docker network name is `outcall-<value>`. |
+| `OUTCALL_GATEWAY` | `10.200.0.1` | Gateway IP (runs DNS filter on 53, HTTP proxy on 8080). |
+| `OUTCALL_MOUNT_AGENT_SOCKET` | unset | Set to `1` to mount `/run/outcall/agent.sock` into agents (prep for Phase 7a). |
+
+### What this does NOT do (yet)
+
+- **Linux-only.** Outcall needs nftables. On macOS/Windows, `CLAWIE_EGRESS=outcall` will fail the daemon probe and degrade to null. This is intentional; Clawie's dev experience on macOS is the null provider.
+- **No dynamic rule writing.** v0.5.2 doesn't write rules from Clawie to Outcall — it assumes the operator pre-installed a preset (e.g. `clawie-default.yaml`). Dynamic rule management is deferred to Phase 8a.
+- **No real-daemon integration test.** Unit tests use a fake outcalld over a Unix socket in a tmp dir. A live-daemon integration test gated on `OUTCALL_INTEGRATION=1` lands in a follow-up.
+
+### Spec alignment
+
+- Spec 002 (container runtime + outcall) — the consumer side. Outcall enforces; Clawie wires.
+- Spec 012 (credential broker) — unchanged. Credentials still come from `credentialBroker().envFor()` and live in the agent's env. Outcall does not inject credentials.
+
+### Companion releases / artifacts
+
+- `clawie-dev/outcall-presets` ships `presets/clawie-default.yaml` (a generic Outcall rule pack, no Clawie-private fields).
+
 ## [0.5.1] — Phase 5: Pluggable Egress (walk-back)
 
 Walks back the v0.5.0 sidecar fork. v0.5.0 shipped a parallel Node.js
@@ -223,7 +271,8 @@ These are P0 for later phases, not v0.1.0:
 - Scheduler + crons (Phase 9 / spec 027)
 - Backup/DR, upgrades, webhooks, marketplace (Phase 10 / specs 028, 029, 030, 024)
 
-[Unreleased]: https://github.com/clawie-dev/clawie/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/clawie-dev/clawie/compare/v0.5.2...HEAD
+[0.5.2]: https://github.com/clawie-dev/clawie/releases/tag/v0.5.2
 [0.5.1]: https://github.com/clawie-dev/clawie/releases/tag/v0.5.1
 [0.5.0]: https://github.com/clawie-dev/clawie/releases/tag/v0.5.0
 [0.4.0]: https://github.com/clawie-dev/clawie/releases/tag/v0.4.0

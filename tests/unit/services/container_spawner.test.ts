@@ -215,6 +215,30 @@ test.group('services/container_spawner', () => {
     assert.notInclude(capturedArgs, '--network=none')
   })
 
+  test('customNetworkName overrides the network-mode-derived flag', async ({ assert }) => {
+    let capturedArgs: string[] = []
+    const runner: ProcessRunner = async (_bin, args) => {
+      capturedArgs = args
+      return {
+        exitCode: 0,
+        stdout: JSON.stringify({ ok: true, output: null }),
+        stderr: '',
+        signal: null,
+        timedOut: false,
+      }
+    }
+    const spawner = new ContainerSpawner({ runner })
+    await spawner.spawn({
+      image: 'agent',
+      spec: { intent: 'chat', task_id: 't' },
+      network: 'none',
+      customNetworkName: 'outcall-clawie',
+    })
+    assert.include(capturedArgs, '--network=outcall-clawie')
+    assert.notInclude(capturedArgs, '--network=none')
+    assert.notInclude(capturedArgs, '--network=bridge')
+  })
+
   test('custom dockerBin is honored', async ({ assert }) => {
     let capturedBin = ''
     const runner: ProcessRunner = async (bin) => {
