@@ -23,12 +23,22 @@ export interface ContainerTaskSpec {
   task_id: string
 }
 
+export type NetworkMode =
+  /** Phase 2 default: --network=none. */
+  | 'none'
+  /** Phase 3: bridge network (provider egress allowed). Phase 5 narrows this via Outcall. */
+  | 'bridge'
+
 export interface SpawnRequest {
   image: string
   spec: ContainerTaskSpec
   timeoutMs?: number
   signal?: AbortSignal
-  /** Extra docker args inserted before the image name. Phase 2 leaves this empty. */
+  /** Per-spawn env vars piped through `docker run -e`. Keys/values must already be sanitised. */
+  env?: Record<string, string>
+  /** Network mode for this spawn. Default 'none' preserves Phase 2 sandboxing. */
+  network?: NetworkMode
+  /** Extra docker args inserted before the image name. */
   extraArgs?: string[]
 }
 
@@ -52,10 +62,9 @@ export interface SpawnResult {
 
 const DEFAULT_TIMEOUT_MS = 30_000
 
-const SANDBOX_ARGS = [
+const BASE_SANDBOX_ARGS = [
   '--rm',
   '-i',
-  '--network=none',
   '--read-only',
   '--tmpfs',
   '/tmp',
@@ -64,6 +73,10 @@ const SANDBOX_ARGS = [
   '--user',
   '1000:1000',
 ]
+
+function networkFlag(mode: NetworkMode): string {
+  return mode === 'none' ? '--network=none' : '--network=bridge'
+}
 
 export const defaultProcessRunner: ProcessRunner = (bin, args, stdin, opts) => {
   return new Promise((resolve, reject) => {
@@ -118,7 +131,21 @@ export class ContainerSpawner {
     const runner = this.opts.runner ?? defaultProcessRunner
     const timeoutMs = req.timeoutMs ?? this.opts.defaultTimeoutMs ?? DEFAULT_TIMEOUT_MS
 
-    const args = ['run', ...SANDBOX_ARGS, ...(req.extraArgs ?? []), req.image]
+    const envArgs: string[] = []
+    if (req.env) {
+      for (const [key, value] of Object.entries(req.env)) {
+        envArgs.push('-e', `${key}=${value}`)
+      }
+    }
+
+    const args = [
+      'run',
+      ...BASE_SANDBOX_ARGS,
+      networkFlag(req.network ?? 'none'),
+      ...envArgs,
+      ...(req.extraArgs ?? []),
+      req.image,
+    ]
     const stdin = JSON.stringify(req.spec)
     const start = Date.now()
 

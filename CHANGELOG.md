@@ -4,6 +4,40 @@ All notable changes to Clawie are documented here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.3.0] — Phase 3: Real LLM
+
+First built-in intent that calls a real LLM. `node ace task:run --intent
+chat --payload '{"provider":"anthropic","model":"claude-sonnet-4-6","messages":[{"role":"user","content":"hi"}]}'`
+spawns `clawie/agent-runtime:0.3.0` with `--network=bridge`, injects
+`ANTHROPIC_API_KEY` from the control plane env, runs the call inside
+the container, and writes a `cost_ledger` row plus a `cost.recorded`
+audit event when the envelope includes a `cost` field. Phase 5 will
+narrow the network from bridge to an Outcall sidecar.
+
+### Added
+
+- **Credential broker stub** — `app/services/credential_broker.ts`. Reads provider API keys from process env. Returns only the env vars whose keys are non-empty. Real broker (spec 012) lands later; this is the interim shape. Test seam via `setCredentialBrokerForTest()`.
+- **ContainerSpawner env + network knobs** — per-spawn `env: Record<string,string>` (rendered as `-e KEY=VAL`) and `network: 'none' | 'bridge'` (default `'none'`, preserving Phase 2 sandboxing for everything except chat).
+- **Dispatch layer** — gains `network` and `credentialProviders` per intent. `chat` registered with `network:'bridge'`, `credentialProviders:['anthropic','openai']`, `timeoutMs:120_000`.
+- **Cost ledger** — `cost_ledger` table + `app/models/cost_ledger_entry.ts`. Currency stored as integer tenths-of-a-cent (`usd_tenths_of_cent`) to avoid float drift; getters give `usdCents` and `usdDollars`. Dispatch writes a row when envelope output has `{provider, model, usage:{input_tokens,output_tokens}, cost?}`.
+- **New audit action** — `cost.recorded` (actor=`cost_ledger`, outcome=`success`) emitted alongside `container.spawn_completed`.
+- **Tests** — 5 credential broker tests, 3 cost-ledger model tests, 3 dispatch cost-ledger tests, 3 spawner env/network tests, 1 integration test for the full chat lifecycle through the fake spawner. 81 tests total (+15 vs v0.2.1).
+
+### Changed
+
+- `registerBuiltinIntents()` now registers `chat` alongside `echo`.
+- `AGENT_RUNTIME_IMAGE` pinned to `clawie/agent-runtime:0.3.0`.
+
+### Spec alignment
+
+- Spec 011 — model router with Anthropic + OpenAI adapters (now living inside the agent-runtime image, called via fetch — no SDKs).
+- Spec 012 — credential broker (stub shape; full implementation deferred).
+- Spec 007 — cost ledger schema and write path.
+
+### Companion release
+
+- [clawie/agent-runtime v0.3.0](https://github.com/clawie-dev/agent-runtime/releases/tag/v0.3.0) ships the `chat` handler + provider adapters + pricing table.
+
 ## [0.2.1] — Phase 2: Container path (spec-aligned)
 
 Replaces the v0.2.0 design (which added a parallel `container.echo`
@@ -70,7 +104,8 @@ These are P0 for later phases, not v0.1.0:
 - Scheduler + crons (Phase 9 / spec 027)
 - Backup/DR, upgrades, webhooks, marketplace (Phase 10 / specs 028, 029, 030, 024)
 
-[Unreleased]: https://github.com/clawie-dev/clawie/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/clawie-dev/clawie/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/clawie-dev/clawie/releases/tag/v0.3.0
 [0.2.1]: https://github.com/clawie-dev/clawie/releases/tag/v0.2.1
 [0.2.0]: https://github.com/clawie-dev/clawie/releases/tag/v0.2.0
 [0.1.0]: https://github.com/clawie-dev/clawie/releases/tag/v0.1.0

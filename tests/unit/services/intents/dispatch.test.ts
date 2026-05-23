@@ -7,6 +7,7 @@ import {
 } from '#services/container_spawner'
 import { containerDispatch, AGENT_RUNTIME_IMAGE } from '#services/intents/dispatch'
 import AuditEvent from '#models/audit_event'
+import CostLedgerEntry from '#models/cost_ledger_entry'
 
 function spawnerWithStdout(stdout: string, opts: { exitCode?: number; stderr?: string } = {}) {
   const runner: ProcessRunner = async () => ({
@@ -99,7 +100,7 @@ test.group('services/intents/dispatch', (group) => {
   })
 
   test('exposes the pinned agent-runtime image tag', ({ assert }) => {
-    assert.equal(AGENT_RUNTIME_IMAGE, 'clawie/agent-runtime:0.2.1')
+    assert.equal(AGENT_RUNTIME_IMAGE, 'clawie/agent-runtime:0.3.0')
   })
 
   test('emits container.spawn_started + container.spawn_completed on success', async ({
@@ -114,6 +115,75 @@ test.group('services/intents/dispatch', (group) => {
     const actions = events.map((e) => e.action)
     assert.deepEqual(actions, ['container.spawn_started', 'container.spawn_completed'])
     assert.equal(events[1].outcome, 'success')
+  })
+
+  test('writes a cost_ledger row + cost.recorded audit when envelope includes cost', async ({
+    assert,
+  }) => {
+    setContainerSpawnerForTest(
+      spawnerWithStdout(
+        JSON.stringify({
+          ok: true,
+          output: {
+            completion: 'hi back',
+            provider: 'anthropic',
+            model: 'claude-sonnet-4-6',
+            usage: { input_tokens: 10, output_tokens: 5 },
+            cost: { usd_cents: 0.12 },
+          },
+        })
+      )
+    )
+    await containerDispatch('chat')({ taskId: 'cost-task', payload: null })
+
+    const rows = await CostLedgerEntry.query().where('task_id', 'cost-task')
+    assert.equal(rows.length, 1)
+    assert.equal(rows[0].provider, 'anthropic')
+    assert.equal(rows[0].model, 'claude-sonnet-4-6')
+    assert.equal(rows[0].inputTokens, 10)
+    assert.equal(rows[0].outputTokens, 5)
+    // 0.12 cents -> 1.2 tenths -> round to nearest int -> 1
+    assert.equal(rows[0].usdTenthsOfCent, 1)
+
+    const events = await AuditEvent.query().where('subject_id', 'cost-task').orderBy('id', 'asc')
+    const actions = events.map((e) => e.action)
+    assert.includeMembers(actions, ['cost.recorded', 'container.spawn_completed'])
+  })
+
+  test('skips cost_ledger when envelope output lacks provider/model/usage', async ({ assert }) => {
+    setContainerSpawnerForTest(
+      spawnerWithStdout(JSON.stringify({ ok: true, output: { message: 'hello: x' } }))
+    )
+    await containerDispatch('echo')({ taskId: 'no-cost', payload: 'x' })
+
+    const rows = await CostLedgerEntry.query().where('task_id', 'no-cost')
+    assert.equal(rows.length, 0)
+  })
+
+  test('records cost row with cost_unknown=true when provider model is not priced', async ({
+    assert,
+  }) => {
+    setContainerSpawnerForTest(
+      spawnerWithStdout(
+        JSON.stringify({
+          ok: true,
+          output: {
+            completion: 'x',
+            provider: 'anthropic',
+            model: 'claude-mystery-9',
+            usage: { input_tokens: 1, output_tokens: 1 },
+            cost: null,
+            cost_unknown: true,
+          },
+        })
+      )
+    )
+    await containerDispatch('chat')({ taskId: 'unknown-cost', payload: null })
+
+    const rows = await CostLedgerEntry.query().where('task_id', 'unknown-cost')
+    assert.equal(rows.length, 1)
+    assert.equal(rows[0].usdTenthsOfCent, 0)
+    assert.equal(rows[0].costUnknown, true)
   })
 
   test('emits container.spawn_failed (outcome=failure) when container reports failure', async ({

@@ -150,6 +150,71 @@ test.group('services/container_spawner', () => {
     })
   })
 
+  test('env map is rendered as -e KEY=VAL docker args', async ({ assert }) => {
+    let capturedArgs: string[] = []
+    const runner: ProcessRunner = async (_bin, args) => {
+      capturedArgs = args
+      return {
+        exitCode: 0,
+        stdout: JSON.stringify({ ok: true, output: null }),
+        stderr: '',
+        signal: null,
+        timedOut: false,
+      }
+    }
+    const spawner = new ContainerSpawner({ runner })
+    await spawner.spawn({
+      image: 'img',
+      spec: { intent: 'echo', task_id: 't' },
+      env: { ANTHROPIC_API_KEY: 'sk-test', OPENAI_API_KEY: 'oai-test' },
+    })
+
+    // Each -e flag is followed by a KEY=VAL pair.
+    const envFlagPositions = capturedArgs.flatMap((a, i) => (a === '-e' ? [i] : []))
+    assert.equal(envFlagPositions.length, 2)
+    const pairs = envFlagPositions.map((i) => capturedArgs[i + 1])
+    assert.includeMembers(pairs, ['ANTHROPIC_API_KEY=sk-test', 'OPENAI_API_KEY=oai-test'])
+  })
+
+  test('network mode "none" produces --network=none flag (default)', async ({ assert }) => {
+    let capturedArgs: string[] = []
+    const runner: ProcessRunner = async (_bin, args) => {
+      capturedArgs = args
+      return {
+        exitCode: 0,
+        stdout: JSON.stringify({ ok: true, output: null }),
+        stderr: '',
+        signal: null,
+        timedOut: false,
+      }
+    }
+    const spawner = new ContainerSpawner({ runner })
+    await spawner.spawn({ image: 'img', spec: { intent: 'echo', task_id: 't' } })
+    assert.include(capturedArgs, '--network=none')
+  })
+
+  test('network mode "bridge" produces --network=bridge flag', async ({ assert }) => {
+    let capturedArgs: string[] = []
+    const runner: ProcessRunner = async (_bin, args) => {
+      capturedArgs = args
+      return {
+        exitCode: 0,
+        stdout: JSON.stringify({ ok: true, output: null }),
+        stderr: '',
+        signal: null,
+        timedOut: false,
+      }
+    }
+    const spawner = new ContainerSpawner({ runner })
+    await spawner.spawn({
+      image: 'img',
+      spec: { intent: 'chat', task_id: 't' },
+      network: 'bridge',
+    })
+    assert.include(capturedArgs, '--network=bridge')
+    assert.notInclude(capturedArgs, '--network=none')
+  })
+
   test('custom dockerBin is honored', async ({ assert }) => {
     let capturedBin = ''
     const runner: ProcessRunner = async (bin) => {

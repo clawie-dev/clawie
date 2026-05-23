@@ -19,8 +19,32 @@ import type { IntentOutcome } from '#services/intents/registry'
 
 type InProcessHandler = (payload: unknown, taskId: string) => Promise<IntentOutcome>
 
+/**
+ * Phase 3 chat stub: the real chat intent runs inside the container
+ * and calls Anthropic/OpenAI. The fake here returns a synthetic
+ * completion + usage + cost so the clawie-side dispatch + cost-ledger
+ * code can be exercised end-to-end without network.
+ */
+const fakeChat: InProcessHandler = async (payload) => {
+  if (typeof payload !== 'object' || payload === null) {
+    return { ok: false, cause: 'invalid_payload', detail: 'must be object' }
+  }
+  const p = payload as Record<string, unknown>
+  return {
+    ok: true,
+    output: {
+      completion: `(stub-reply for model=${p.model})`,
+      provider: p.provider,
+      model: p.model,
+      usage: { input_tokens: 7, output_tokens: 4 },
+      cost: { usd_cents: 0.42 },
+    },
+  }
+}
+
 const HANDLERS: Record<string, InProcessHandler> = {
   echo: (payload, taskId) => echoIntent({ taskId, payload }),
+  chat: fakeChat,
 }
 
 export function fakeContainerSpawner(): ContainerSpawner {

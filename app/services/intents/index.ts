@@ -14,7 +14,19 @@ let registeredFlag = false
 export function registerBuiltinIntents(): void {
   if (registeredFlag) return
   const reg = intentRegistry()
-  if (!reg.has('echo')) reg.register('echo', containerDispatch('echo'))
+  if (!reg.has('echo')) {
+    reg.register('echo', containerDispatch('echo'))
+  }
+  if (!reg.has('chat')) {
+    reg.register(
+      'chat',
+      containerDispatch('chat', {
+        network: 'bridge',
+        credentialProviders: ['anthropic', 'openai'],
+        timeoutMs: 120_000,
+      })
+    )
+  }
   registeredFlag = true
 }
 

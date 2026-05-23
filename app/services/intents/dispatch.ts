@@ -1,27 +1,42 @@
-import { containerSpawner } from '#services/container_spawner'
+import { containerSpawner, type NetworkMode } from '#services/container_spawner'
 import { auditLogger } from '#services/audit_logger'
+import { credentialBroker, type Provider } from '#services/credential_broker'
+import CostLedgerEntry from '#models/cost_ledger_entry'
 import type { IntentContext, IntentHandler, IntentOutcome } from '#services/intents/registry'
 
 /**
- * Phase 2 dispatch layer: turn an intent name into a handler that
- * delegates execution to the `clawie/agent-runtime` image via
- * `ContainerSpawner`. The container has its own copy of the intent's
- * implementation; this side only knows the contract.
+ * Phase 3 dispatch layer. `containerDispatch(intentName, opts)` returns
+ * an IntentHandler that:
+ *   1. records `container.spawn_started`
+ *   2. spawns the pinned agent-runtime image with the per-intent
+ *      network mode + credential env
+ *   3. parses the envelope; if it carries a cost field, writes a
+ *      cost_ledger row and emits a `cost.recorded` audit event
+ *   4. records `container.spawn_completed` (success) or
+ *      `container.spawn_failed` (failure)
  *
- * Per PHASES.md Phase 2 acceptance:
- *   "same `task:run` command now executes inside Docker"
- *
- * So `registerBuiltinIntents()` wires built-in intents through this
- * dispatcher rather than to their in-process handlers directly. The
- * in-process handlers (e.g. `app/services/intents/echo.ts`) still
- * exist as reference implementations and as direct unit-test fixtures.
+ * Built-in intents (registered in `intents/index.ts`):
+ *   - echo  -> network:none, no credentials, no cost expected
+ *   - chat  -> network:bridge, providers:[anthropic,openai], cost expected
  */
 
-export const AGENT_RUNTIME_IMAGE = 'clawie/agent-runtime:0.2.1'
+export const AGENT_RUNTIME_IMAGE = 'clawie/agent-runtime:0.3.0'
 
 export interface ContainerDispatchOptions {
   image?: string
   timeoutMs?: number
+  network?: NetworkMode
+  /** Providers whose credentials should be injected into the container's env. */
+  credentialProviders?: ReadonlyArray<Provider>
+}
+
+interface ParsedCost {
+  provider: string
+  model: string
+  inputTokens: number
+  outputTokens: number
+  usdTenthsOfCent: number
+  costUnknown: boolean
 }
 
 export function containerDispatch(
@@ -29,6 +44,8 @@ export function containerDispatch(
   opts: ContainerDispatchOptions = {}
 ): IntentHandler {
   const image = opts.image ?? AGENT_RUNTIME_IMAGE
+  const network = opts.network ?? 'none'
+
   return async (ctx: IntentContext): Promise<IntentOutcome> => {
     const audit = auditLogger()
     await audit.record({
@@ -37,8 +54,12 @@ export function containerDispatch(
       subjectKind: 'task',
       subjectId: ctx.taskId,
       outcome: 'success',
-      details: { image, intent: intentName },
+      details: { image, intent: intentName, network },
     })
+
+    const env = opts.credentialProviders?.length
+      ? credentialBroker().envFor(opts.credentialProviders)
+      : undefined
 
     const result = await containerSpawner().spawn({
       image,
@@ -49,9 +70,32 @@ export function containerDispatch(
       },
       signal: ctx.signal,
       timeoutMs: opts.timeoutMs,
+      network,
+      env,
     })
 
     if (result.envelope.ok) {
+      const cost = parseCost(result.envelope.output)
+      if (cost) {
+        await CostLedgerEntry.create({
+          taskId: ctx.taskId,
+          provider: cost.provider,
+          model: cost.model,
+          inputTokens: cost.inputTokens,
+          outputTokens: cost.outputTokens,
+          usdTenthsOfCent: cost.usdTenthsOfCent,
+          costUnknown: cost.costUnknown,
+        })
+        await audit.record({
+          actor: 'cost_ledger',
+          action: 'cost.recorded',
+          subjectKind: 'task',
+          subjectId: ctx.taskId,
+          outcome: 'success',
+          details: cost,
+        })
+      }
+
       await audit.record({
         actor: 'container_spawner',
         action: 'container.spawn_completed',
@@ -89,5 +133,27 @@ export function containerDispatch(
       cause: result.envelope.cause,
       detail: result.envelope.detail,
     }
+  }
+}
+
+function parseCost(output: unknown): ParsedCost | null {
+  if (typeof output !== 'object' || output === null) return null
+  const o = output as Record<string, unknown>
+  if (typeof o.provider !== 'string' || typeof o.model !== 'string') return null
+  const usage = o.usage
+  if (typeof usage !== 'object' || usage === null) return null
+  const u = usage as Record<string, unknown>
+  if (typeof u.input_tokens !== 'number' || typeof u.output_tokens !== 'number') {
+    return null
+  }
+  const costField = o.cost as { usd_cents: number } | null | undefined
+  const usdCents = costField && typeof costField.usd_cents === 'number' ? costField.usd_cents : 0
+  return {
+    provider: o.provider,
+    model: o.model,
+    inputTokens: u.input_tokens,
+    outputTokens: u.output_tokens,
+    usdTenthsOfCent: Math.round(usdCents * 10),
+    costUnknown: o.cost_unknown === true,
   }
 }

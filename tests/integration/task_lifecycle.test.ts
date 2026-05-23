@@ -7,6 +7,7 @@ import { setContainerSpawnerForTest } from '#services/container_spawner'
 import { fakeContainerSpawner } from '#tests/helpers/fake_spawner'
 import { auditLogger } from '#services/audit_logger'
 import AuditEvent from '#models/audit_event'
+import CostLedgerEntry from '#models/cost_ledger_entry'
 import Task from '#models/task'
 
 test.group('integration/task_lifecycle', (group) => {
@@ -92,5 +93,33 @@ test.group('integration/task_lifecycle', (group) => {
       actor: 'integration',
     })
     assert.equal(a.id, b.id)
+  })
+
+  test('chat intent: completes, writes cost ledger row, audits cost.recorded', async ({
+    assert,
+  }) => {
+    const sm = new TaskStateMachine()
+    const exec = new TaskExecutor()
+    const task = await sm.create({
+      intent: 'chat',
+      payload: {
+        provider: 'anthropic',
+        model: 'claude-sonnet-4-6',
+        messages: [{ role: 'user', content: 'hi' }],
+      },
+      actor: 'integration',
+    })
+
+    const done = await exec.execute(task.id, 'integration')
+    assert.equal(done.status, 'completed')
+
+    const rows = await CostLedgerEntry.query().where('task_id', task.id)
+    assert.equal(rows.length, 1)
+    assert.equal(rows[0].provider, 'anthropic')
+    assert.equal(rows[0].model, 'claude-sonnet-4-6')
+
+    const events = await AuditEvent.query().where('subject_id', task.id).orderBy('id', 'asc')
+    const actions = events.map((e) => e.action)
+    assert.includeMembers(actions, ['cost.recorded', 'container.spawn_completed', 'task.completed'])
   })
 })
