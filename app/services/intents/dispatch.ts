@@ -1,37 +1,40 @@
-import { containerSpawner, type NetworkMode, type SidecarSpec } from '#services/container_spawner'
+import { containerSpawner, type NetworkMode, type SpawnRequest } from '#services/container_spawner'
 import { auditLogger } from '#services/audit_logger'
 import { credentialBroker, type Provider } from '#services/credential_broker'
+import { egressProvider } from '#services/egress/provider'
 import CostLedgerEntry from '#models/cost_ledger_entry'
 import type { IntentContext, IntentHandler, IntentOutcome } from '#services/intents/registry'
 
 /**
- * Phase 3 dispatch layer. `containerDispatch(intentName, opts)` returns
- * an IntentHandler that:
+ * Dispatch layer. `containerDispatch(intentName, opts)` returns an
+ * `IntentHandler` that:
  *   1. records `container.spawn_started`
- *   2. spawns the pinned agent-runtime image with the per-intent
- *      network mode + credential env
- *   3. parses the envelope; if it carries a cost field, writes a
- *      cost_ledger row and emits a `cost.recorded` audit event
- *   4. records `container.spawn_completed` (success) or
+ *   2. builds the SpawnRequest (network + env from broker)
+ *   3. asks the active `EgressProvider` to decorate the request
+ *      (null provider passes through; outcall provider adds the
+ *      Outcall network + proxy env in Phase 5b)
+ *   4. parses the envelope; if it carries a cost field, writes a
+ *      cost_ledger row and emits `cost.recorded`
+ *   5. records `container.spawn_completed` (success) or
  *      `container.spawn_failed` (failure)
  *
  * Built-in intents (registered in `intents/index.ts`):
  *   - echo  -> network:none, no credentials, no cost expected
  *   - chat  -> network:bridge, providers:[anthropic,openai], cost expected
+ *
+ * Phase 5.1 walks back the v0.5.0 sidecar fork. Credentials live in the
+ * agent container's env (the Phase 3 model). Network-level isolation,
+ * if any, is layered on by the EgressProvider -- not by the dispatcher.
  */
 
-export const AGENT_RUNTIME_IMAGE = 'clawie/agent-runtime:0.4.0'
-export const OUTCALL_IMAGE = 'clawie/outcall:0.1.0'
-export const OUTCALL_URL_IN_AGENT = 'http://localhost:8080'
+export const AGENT_RUNTIME_IMAGE = 'clawie/agent-runtime:0.4.1'
 
 export interface ContainerDispatchOptions {
   image?: string
   timeoutMs?: number
   network?: NetworkMode
-  /** Providers whose credentials should be injected (into sidecar in sidecar mode, into agent otherwise). */
+  /** Providers whose credentials the broker should inject into the agent container's env. */
   credentialProviders?: ReadonlyArray<Provider>
-  /** Sidecar image. Defaults to OUTCALL_IMAGE. Only used when network='sidecar'. */
-  sidecarImage?: string
 }
 
 interface ParsedCost {
@@ -61,26 +64,11 @@ export function containerDispatch(
       details: { image, intent: intentName, network },
     })
 
-    // Credentials flow into the sidecar (sidecar mode) or into the
-    // agent container directly (legacy bridge mode). The agent in
-    // sidecar mode only learns about OUTCALL_URL, not the keys.
-    const brokeredEnv = opts.credentialProviders?.length
+    const env = opts.credentialProviders?.length
       ? credentialBroker().envFor(opts.credentialProviders)
-      : {}
+      : undefined
 
-    let sidecar: SidecarSpec | undefined
-    let agentEnv: Record<string, string> | undefined
-    if (network === 'sidecar') {
-      sidecar = {
-        image: opts.sidecarImage ?? OUTCALL_IMAGE,
-        env: brokeredEnv,
-      }
-      agentEnv = { OUTCALL_URL: OUTCALL_URL_IN_AGENT }
-    } else if (Object.keys(brokeredEnv).length > 0) {
-      agentEnv = brokeredEnv
-    }
-
-    const result = await containerSpawner().spawn({
+    const baseRequest: SpawnRequest = {
       image,
       spec: {
         intent: intentName,
@@ -90,9 +78,11 @@ export function containerDispatch(
       signal: ctx.signal,
       timeoutMs: opts.timeoutMs,
       network,
-      env: agentEnv,
-      sidecar,
-    })
+      env: env && Object.keys(env).length > 0 ? env : undefined,
+    }
+
+    const decoratedRequest = await egressProvider().wrap(baseRequest, { intentName })
+    const result = await containerSpawner().spawn(decoratedRequest)
 
     if (result.envelope.ok) {
       const cost = parseCost(result.envelope.output)

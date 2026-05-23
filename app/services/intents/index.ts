@@ -21,7 +21,7 @@ export function registerBuiltinIntents(): void {
     reg.register(
       'chat',
       containerDispatch('chat', {
-        network: 'sidecar',
+        network: 'bridge',
         credentialProviders: ['anthropic', 'openai'],
         timeoutMs: 120_000,
       })

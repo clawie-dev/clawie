@@ -4,7 +4,53 @@ All notable changes to Clawie are documented here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
-## [0.5.0] — Phase 5: Outcall sidecar
+## [0.5.1] — Phase 5: Pluggable Egress (walk-back)
+
+Walks back the v0.5.0 sidecar fork. v0.5.0 shipped a parallel Node.js
+implementation under `clawie/outcall:*` that re-built what the real
+Outcall project (`Outcall-dev/root`) already does — a Rust host
+daemon governing Docker container egress via nftables + DNS filter +
+L7 proxy. Clawie is a consumer of Outcall, not a re-implementer.
+
+This release introduces the `EgressProvider` abstraction with a null
+default (no isolation, Phase 3 behavior preserved) and removes the
+v0.5.0 sidecar machinery. The real `OutcallEgressProvider` lands in
+v0.5.2 per the remapped `specs/PHASES.md`.
+
+### Added
+
+- **`EgressProvider` interface** — `app/services/egress/provider.ts`. Single method `wrap(req, ctx) → req` decorates a `SpawnRequest` before it reaches `ContainerSpawner`. Default provider is `NullEgressProvider` (passes the request through). Phase 5b will register an `OutcallEgressProvider` when `CLAWIE_EGRESS=outcall`.
+- **Dispatch** calls `egressProvider().wrap(...)` between building the spawn request and invoking the spawner. This is the only seam needed for any future provider to inject Docker flags, env vars, or networking.
+- Tests for the null provider + test-seam.
+
+### Changed
+
+- `ContainerSpawner` reverted: `SidecarSpec` type removed; `NetworkMode` is back to `'none' | 'bridge'`; sidecar lifecycle code (`stopSidecar`, `randomSidecarName`, networkFlagFor + sidecar branch) deleted. The spawner is once again network-agnostic: a single `docker run` per call. Failure cause `spawn_failed` is the only path; `sidecar_missing` / `sidecar_start_failed` are gone.
+- `chat` intent reverted to `network: 'bridge'` + `credentialProviders: ['anthropic', 'openai']`. Credentials live in the agent container's env (Phase 3 model), where they have always lived for chat. Network isolation, when desired, is layered on by the operator opting into the Outcall provider in Phase 5b.
+- `AGENT_RUNTIME_IMAGE` pinned to `clawie/agent-runtime:0.4.1` (which reverted its OUTCALL_URL routing).
+- `fake_spawner` test helper: dropped the `docker run -d` / `docker stop` branches it added in v0.5.0.
+
+### Removed
+
+- `SidecarSpec` interface (`app/services/container_spawner.ts`).
+- `network: 'sidecar'`, the 4 sidecar lifecycle tests in `container_spawner.test.ts`, the sidecar test in `dispatch.test.ts`, and the `OUTCALL_IMAGE` / `OUTCALL_URL_IN_AGENT` constants from `dispatch.ts`.
+- No `clawie/outcall:*` reference exists in clawie's runtime anymore.
+
+### Companion releases
+
+- [clawie/agent-runtime v0.4.1](https://github.com/clawie-dev/agent-runtime/releases/tag/v0.4.1) — reverts the OUTCALL_URL mount-path routing in the chat handler.
+
+### Why this exists
+
+v0.5.0 was incorrect, not unsafe — it shipped a working sidecar that just wasn't Outcall. Tagging it cleanly as v0.5.1 (walk-back) instead of force-deleting v0.5.0 preserves the history of the design dead end. Future readers see why `EgressProvider` exists as an abstraction rather than as a hardcoded Outcall path.
+
+## [0.5.0] — Phase 5: Outcall sidecar (superseded)
+
+**Status: superseded by v0.5.1.** This release shipped a parallel Node.js
+re-implementation of Outcall instead of consuming the real Outcall project.
+The container spawner gained a `network: 'sidecar'` mode that ran a
+custom `clawie/outcall:0.1.0` image alongside the agent. v0.5.1 reverts
+that work and introduces a proper `EgressProvider` abstraction instead.
 
 Provider credentials no longer enter the agent container. The `chat`
 intent now spawns an `Outcall` sidecar first, attaches the agent to
@@ -177,7 +223,8 @@ These are P0 for later phases, not v0.1.0:
 - Scheduler + crons (Phase 9 / spec 027)
 - Backup/DR, upgrades, webhooks, marketplace (Phase 10 / specs 028, 029, 030, 024)
 
-[Unreleased]: https://github.com/clawie-dev/clawie/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/clawie-dev/clawie/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/clawie-dev/clawie/releases/tag/v0.5.1
 [0.5.0]: https://github.com/clawie-dev/clawie/releases/tag/v0.5.0
 [0.4.0]: https://github.com/clawie-dev/clawie/releases/tag/v0.4.0
 [0.3.0]: https://github.com/clawie-dev/clawie/releases/tag/v0.3.0

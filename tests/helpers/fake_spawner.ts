@@ -48,17 +48,7 @@ const HANDLERS: Record<string, InProcessHandler> = {
 }
 
 export function fakeContainerSpawner(): ContainerSpawner {
-  const runner: ProcessRunner = async (_bin, args, stdin) => {
-    // Sidecar lifecycle calls -- `docker run -d ...` (start) and
-    // `docker stop NAME` (teardown). Both produce no JSON envelope;
-    // we just return success so the agent run proceeds.
-    if (args[0] === 'run' && args.includes('-d')) {
-      return { exitCode: 0, stdout: '', stderr: '', signal: null, timedOut: false }
-    }
-    if (args[0] === 'stop') {
-      return { exitCode: 0, stdout: '', stderr: '', signal: null, timedOut: false }
-    }
-
+  const runner: ProcessRunner = async (_bin, _args, stdin) => {
     let spec: ContainerTaskSpec
     try {
       spec = JSON.parse(stdin)
