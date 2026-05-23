@@ -4,6 +4,53 @@ All notable changes to Clawie are documented here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.0.0] — Phase 10: v1.0 ship-grade
+
+First stable release. Consolidates Phases 1–9a into one operator-
+deployable surface and adds atomic backup, snapshot verification,
+and outbound webhooks.
+
+### Added (v1.0 only — prior tags ship the rest of the surface)
+
+- **`backup:create <path>` CLI** — atomic SQLite snapshot via `VACUUM INTO`. Online, no downtime. Destination must not exist.
+- **`backup:verify <path>` CLI** — opens a snapshot read-only, checks schema (`tasks`, `audit_events`, `policies`, `approvals`, `teams`, `cron_jobs`), walks the audit hash-chain end-to-end. In v1.0 restore is a manual `cp` + restart; in-place restore is a v1.x patch.
+- **`WebhookSubscription` model + migration** — name (unique), url, event_pattern (exact / `prefix.*` / `*`), optional secret, enabled.
+- **`WebhookDispatcher`** — `app/services/webhook_dispatcher.ts`. Best-effort POST to each matching subscription; HMAC-signs the body when secret is set (`x-clawie-signature: sha256=...`); audits every attempt. Single attempt v1.0; retry/backoff in v1.x.
+- **README** rewritten for v1.0 — phase capability table, operator-surface table, full env-var matrix.
+- **Tests** — 4 `WebhookSubscription` tests, 6 `WebhookDispatcher` tests. 169 total (+10 vs v0.9.0).
+
+### What v1.0 promises
+
+- **Substrate stability.** Phase 1–9a APIs (state machine, intents, dispatch, audit, egress provider interface) are under SemVer. Breaking changes require a major bump.
+- **Backup discipline.** `backup:create` + `backup:verify` is the operator safety net.
+- **Audit chain integrity.** In-process `verifyChain()` + offline `backup:verify` detect tampering at any storage layer.
+- **Webhook outbound.** Wire Clawie to existing ops systems without modifying it.
+
+### Spec alignment
+
+- Spec 016 (pipeline state machine) — Phase 1's state machine is canonical.
+- Spec 028 (backup/DR) — `backup:create` + `backup:verify`.
+- Spec 029 (upgrades) — SemVer + reversible migrations.
+- Spec 030 (webhooks) — outbound HMAC-signed delivery.
+
+### Repo summary at v1.0
+
+| Repo | Tag | Role |
+|---|---|---|
+| `clawie-dev/clawie` | **v1.0.0** | The framework (this repo). |
+| `clawie-dev/agent-runtime` | **v0.5.0** | Base Docker image: echo + chat handlers + Outcall agent shim client. |
+| `clawie-dev/outcall-presets` | HEAD | `presets/clawie-default.yaml` Outcall rule pack. |
+| `clawie-dev/specs` | HEAD | `PHASES.md` + the spec set. |
+| `Outcall-dev/root` (independent) | v0.1.7+ | Optional egress filter daemon. |
+
+### v1.0 deliberately defers (to v1.x)
+
+- Linear / Jira drivers (spec 026).
+- Marketplace registry (spec 024) — UI hook only.
+- In-process scheduler ticker (v1.0 uses host cron).
+- Webhook retry / backoff.
+- `default-agency` starter pack and `clawie.dev` landing — separate repos, not gated.
+
 ## [0.9.0] — Phase 9: Scheduler + Crons
 
 Recurring tasks. `cron_jobs` rows describe (name, cron expression,
@@ -474,7 +521,8 @@ These are P0 for later phases, not v0.1.0:
 - Scheduler + crons (Phase 9 / spec 027)
 - Backup/DR, upgrades, webhooks, marketplace (Phase 10 / specs 028, 029, 030, 024)
 
-[Unreleased]: https://github.com/clawie-dev/clawie/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/clawie-dev/clawie/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/clawie-dev/clawie/releases/tag/v1.0.0
 [0.9.0]: https://github.com/clawie-dev/clawie/releases/tag/v0.9.0
 [0.8.1]: https://github.com/clawie-dev/clawie/releases/tag/v0.8.1
 [0.8.0]: https://github.com/clawie-dev/clawie/releases/tag/v0.8.0
