@@ -4,6 +4,23 @@ All notable changes to Clawie are documented here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.8.1] — Phase 8a: Per-team rule scoping ergonomics
+
+Operators move from "edit YAML by hand" to "one command per team".
+`node ace outcall:sync --team <slug>` generates a per-team Outcall
+rule pack, writes it to `/etc/outcall/rules.d/clawie-team-<slug>.yaml`,
+and triggers `POST /api/v1/rules/reload`.
+
+### Added
+
+- **`RulePackWriter`** — `app/services/egress/rule_pack_writer.ts`. Renders a team-scoped YAML rule pack (`agent.name == "clawie-<slug>-chat" && (dns.query == ... || http.host == ...)`), writes it to the configured `rulesDir`, POSTs to the daemon's reload endpoint.
+- **`outcall:sync` CLI** — `node ace outcall:sync --team <slug> [--hosts host1.com,host2.com]`. Default host set: `api.anthropic.com`, `api.openai.com`.
+- **Tests** — 4 RulePackWriter tests. 144 total (+4 vs v0.8.0).
+
+### No upstream Outcall PR this release
+
+The endpoints we use (`/api/v1/rules/reload`) and rule shape (`agent.name`, `dns.query`, `http.host`) already exist in Outcall v0.1.7+. Future Phase 8a follow-ups (per-team budget caps, rule provenance metadata) may require upstream changes; those PRs would justify themselves to any multi-tenant operator and would not be Clawie-specific.
+
 ## [0.8.0] — Phase 8: Teams + Multi-Agent
 
 Agents group into Teams. Each team gets a dedicated Outcall network
@@ -428,7 +445,8 @@ These are P0 for later phases, not v0.1.0:
 - Scheduler + crons (Phase 9 / spec 027)
 - Backup/DR, upgrades, webhooks, marketplace (Phase 10 / specs 028, 029, 030, 024)
 
-[Unreleased]: https://github.com/clawie-dev/clawie/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/clawie-dev/clawie/compare/v0.8.1...HEAD
+[0.8.1]: https://github.com/clawie-dev/clawie/releases/tag/v0.8.1
 [0.8.0]: https://github.com/clawie-dev/clawie/releases/tag/v0.8.0
 [0.7.1]: https://github.com/clawie-dev/clawie/releases/tag/v0.7.1
 [0.7.0]: https://github.com/clawie-dev/clawie/releases/tag/v0.7.0
