@@ -1,5 +1,6 @@
 import { intentRegistry } from '#services/intents/registry'
 import { echoIntent } from '#services/intents/echo'
+import { containerEchoIntent } from '#services/intents/container_echo'
 
 let registeredFlag = false
 
@@ -11,6 +12,7 @@ export function registerBuiltinIntents(): void {
   if (registeredFlag) return
   const reg = intentRegistry()
   if (!reg.has('echo')) reg.register('echo', echoIntent)
+  if (!reg.has('container.echo')) reg.register('container.echo', containerEchoIntent)
   registeredFlag = true
 }
 

@@ -4,6 +4,37 @@ All notable changes to Clawie are documented here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.2.0] — Phase 2: Container path
+
+The `IntentHandler` abstraction from Phase 1 stays exactly the same; this
+release adds a second execution model behind it. A `ContainerSpawner` service
+runs the pinned `clawie/agent-runtime:0.2.0` image with a JSON task spec on
+stdin and parses a JSON envelope on stdout. The new `container.echo` intent
+delegates to it — same observable behavior as `echo`, just inside Docker.
+
+This proves the container boundary end-to-end (lifecycle → spawn → envelope →
+state machine) without introducing any new workload. Phase 3 will add real
+intents on top of this spawner.
+
+### Added
+
+- **ContainerSpawner** — `app/services/container_spawner.ts`. Wraps `docker run -i` with sandbox flags (`--network=none --read-only --user 1000:1000 --memory=256m --cpus=0.5 --tmpfs /tmp`), pipes a JSON spec to stdin, parses a JSON envelope from stdout. Configurable timeout (default 30s); injectable `ProcessRunner` for tests. Failure causes: `spawn_failed`, `timeout`, `empty_stdout`, `invalid_envelope`. Envelope failures pass through unchanged.
+- **`container.echo` intent** — `app/services/intents/container_echo.ts`. Same semantics as `echo`, runs in the agent-runtime image. Pinned to image tag `clawie/agent-runtime:0.2.0`.
+- **Tests** — 9 unit tests for the spawner against a fake runner (all cause codes covered + argv/stdin assertions); 5 tests for the intent through a fake spawner; 3 integration tests through the full lifecycle (executor + state machine + spawner) with Docker faked. 66 tests total, lint + typecheck clean.
+
+### Changed
+
+- `registerBuiltinIntents()` now registers both `echo` (Phase 1) and `container.echo` (Phase 2).
+
+### Spec alignment
+
+- Spec 002 (container runtime + outcall) — sandbox flags and the stdin/stdout envelope contract.
+- Spec 008 (intents-as-extensible) — the registry now demonstrates a containerized handler alongside an in-process one without any registry-layer changes.
+
+### Companion release
+
+- [clawie/agent-runtime v0.2.0](https://github.com/clawie-dev/agent-runtime/releases/tag/v0.2.0) ships the matching base image (Node 24 alpine, non-root, built-in `echo` handler).
+
 ## [0.1.0] — Phase 1: Hello Task
 
 The smallest possible vertical slice through Clawie's architecture: durable tasks, an audit chain, one built-in intent handler, a CLI, and a REST surface. No LLMs, no Docker, no Outcall yet — those land in subsequent phases per `PHASES.md`.
@@ -42,5 +73,6 @@ These are P0 for later phases, not v0.1.0:
 - Scheduler + crons (Phase 9 / spec 027)
 - Backup/DR, upgrades, webhooks, marketplace (Phase 10 / specs 028, 029, 030, 024)
 
-[Unreleased]: https://github.com/clawie-dev/clawie/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/clawie-dev/clawie/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/clawie-dev/clawie/releases/tag/v0.2.0
 [0.1.0]: https://github.com/clawie-dev/clawie/releases/tag/v0.1.0
