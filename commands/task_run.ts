@@ -75,6 +75,30 @@ export default class TaskRun extends BaseCommand {
       actor: 'cli',
     })
 
+    if (created.status === 'approval_pending') {
+      this.logger.warning(
+        `task ${created.id} requires approval. ` +
+          `run: node ace task:approve --id ${created.id} --decision approve`
+      )
+      if (this.json !== undefined) {
+        this.logger.log(
+          JSON.stringify(
+            { id: created.id, intent: created.intent, status: created.status },
+            null,
+            2
+          )
+        )
+      }
+      this.exitCode = 0
+      return
+    }
+
+    if (created.status === 'failed') {
+      this.logger.error(`task ${created.id} → failed (policy denied)`)
+      this.exitCode = 1
+      return
+    }
+
     const finished = await taskExecutor().execute(created.id, 'cli')
 
     const summary = {

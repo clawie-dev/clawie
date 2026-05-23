@@ -33,3 +33,7 @@ router
 router.get('/v1/tasks', [controllers.Tasks, 'index'])
 router.post('/v1/tasks', [controllers.Tasks, 'store'])
 router.get('/v1/tasks/:id', [controllers.Tasks, 'show'])
+
+// ── Phase 4 approvals ─────────────────────────────────────────────────────────
+router.get('/v1/approvals', [controllers.Approvals, 'index'])
+router.post('/v1/tasks/:id/approval', [controllers.Approvals, 'decide'])

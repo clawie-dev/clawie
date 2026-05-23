@@ -4,7 +4,9 @@ import { TaskStateMachine } from '#services/task_state_machine'
 import { TaskExecutor } from '#services/task_executor'
 import { registerBuiltinIntents, resetIntentsForTest } from '#services/intents/index'
 import { setContainerSpawnerForTest } from '#services/container_spawner'
+import { setPolicyEngineForTest } from '#services/policy_engine'
 import { fakeContainerSpawner } from '#tests/helpers/fake_spawner'
+import { installAllowAllPolicy } from '#tests/helpers/allow_all_policy'
 import { auditLogger } from '#services/audit_logger'
 import AuditEvent from '#models/audit_event'
 import CostLedgerEntry from '#models/cost_ledger_entry'
@@ -16,9 +18,11 @@ test.group('integration/task_lifecycle', (group) => {
     resetIntentsForTest()
     registerBuiltinIntents()
     setContainerSpawnerForTest(fakeContainerSpawner())
+    installAllowAllPolicy()
     return () => {
       resetIntentsForTest()
       setContainerSpawnerForTest(null)
+      setPolicyEngineForTest(null)
     }
   })
 

@@ -48,8 +48,15 @@ export default class TasksController {
       actor: 'api',
     })
 
-    // Phase 1: synchronous in-process execution.
-    // Phase 2 will detach this to a background worker.
+    // Tasks that need approval (or were policy-denied) don't run yet.
+    // The caller sees the task in its current state and uses the
+    // approval endpoints to drive it forward.
+    if (created.status === 'approval_pending' || created.status === 'failed') {
+      return response.created(serializeTask(created))
+    }
+
+    // Synchronous in-process execution for now. A worker queue lands
+    // alongside the scheduler in Phase 9.
     const finished = await taskExecutor().execute(created.id, 'api')
 
     return response.created(serializeTask(finished))

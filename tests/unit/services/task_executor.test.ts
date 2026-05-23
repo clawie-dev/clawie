@@ -5,7 +5,9 @@ import { TaskStateMachine } from '#services/task_state_machine'
 import { resetIntentsForTest, registerBuiltinIntents } from '#services/intents/index'
 import { intentRegistry } from '#services/intents/registry'
 import { setContainerSpawnerForTest } from '#services/container_spawner'
+import { setPolicyEngineForTest } from '#services/policy_engine'
 import { fakeContainerSpawner } from '#tests/helpers/fake_spawner'
+import { installAllowAllPolicy } from '#tests/helpers/allow_all_policy'
 
 test.group('services/task_executor', (group) => {
   group.each.setup(() => testUtils.db().truncate())
@@ -13,9 +15,11 @@ test.group('services/task_executor', (group) => {
     resetIntentsForTest()
     registerBuiltinIntents()
     setContainerSpawnerForTest(fakeContainerSpawner())
+    installAllowAllPolicy()
     return () => {
       resetIntentsForTest()
       setContainerSpawnerForTest(null)
+      setPolicyEngineForTest(null)
     }
   })
 

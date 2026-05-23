@@ -3,6 +3,7 @@ import { DateTime } from 'luxon'
 import { randomUUID } from 'node:crypto'
 
 export type TaskStatus =
+  | 'approval_pending'
   | 'queued'
   | 'claimed'
   | 'running'

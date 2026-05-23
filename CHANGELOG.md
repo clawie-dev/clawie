@@ -4,6 +4,40 @@ All notable changes to Clawie are documented here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.4.0] — Phase 4: Policy + Approval
+
+Default-deny semantics. Every task now passes through the policy
+engine on creation; an empty policy table means every task lands in
+`approval_pending` waiting for a human. Operators decide via CLI or
+REST; the matching approval row keeps a deadline and is swept on
+expiry.
+
+### Added
+
+- **PolicyEngine** — `app/services/policy_engine.ts`. Loads policies matching the task's intent (exact match or `*`), sorts by priority desc + id asc, takes the first whose predicates match. Ties on priority resolve to the most restrictive decision (`deny > requires_approval > allow`). No matching rule → `requires_approval` (default-deny). Predicate matching is exact equality on dot-path payload fields; regex / ranges land later with spec 003.
+- **Approval lifecycle in the state machine** — `approval_pending` joins the pre-execution states. `create()` now consults the engine and emits `policy.decided` audit, then either: lands the task in `queued` (allow), creates a pending approval row + emits `approval.requested` (requires_approval), or marks the task `failed` with cause `policy_denied`. New transitions: `approve()` → `queued`, `denyApproval()` → `failed (approval_denied)`, `expirePastDeadlines()` → `failed (approval_expired)`.
+- **Models + migrations** — `policies` (name, intent_pattern, predicates JSON, decision, priority, created_by) and `approvals` (task_id unique, status, requested_at, deadline_at, decided_by, decided_at, reason).
+- **REST** — `GET /v1/approvals?status=pending` lists pending approvals; `POST /v1/tasks/:id/approval {decision, reason?}` approves or denies and (on approve) runs the task synchronously.
+- **CLI** — `node ace task:approve --id <id> --decision approve|deny --reason '...'`, `node ace task:queue [--status pending]`, `node ace approvals:sweep` (one-shot deadline sweep; scheduler integration lands in Phase 9).
+- **Audit actions** — `policy.decided` (actor=`policy_engine`), `approval.requested`, `approval.granted`, `approval.denied`, `approval.expired`.
+- **Tests** — 8 policy engine tests (default-deny, `*` matching, exact intent priority, predicate match, ties, priority ordering, nested dot-paths, miss), 3 policy model tests, 2 approval model tests, 5 integration tests covering the full approval lifecycle (no policy → approve, explicit allow, explicit deny, approval denial, deadline expiry). 99 tests total (+18 vs v0.3.0).
+
+### Changed
+
+- `TaskStatus` gains `approval_pending`. Existing transitions are unchanged.
+- `tasks_controller.store()` no longer auto-executes when the task is held for approval — it returns the task in its current state so the API client can poll/decide.
+- `task:run` CLI prints the approval hint instead of executing when the task is held.
+
+### Test helpers
+
+- `tests/helpers/allow_all_policy.ts` — Phase 1/2/3 lifecycle tests inject this to bypass the default-deny gate (they're not testing policy behavior). Phase 4 tests use the real engine with seeded policies.
+
+### Spec alignment
+
+- Spec 003 (policy engine) — rule shape, default-deny, audit trail.
+- Spec 005 (approvals HITL) — approval table, decision windows, deadline expiry.
+- Spec 006 (observability) — five new audit actions chained through the existing hash-chained logger.
+
 ## [0.3.0] — Phase 3: Real LLM
 
 First built-in intent that calls a real LLM. `node ace task:run --intent
@@ -42,8 +76,8 @@ narrow the network from bridge to an Outcall sidecar.
 
 Replaces the v0.2.0 design (which added a parallel `container.echo`
 intent alongside in-process `echo`) with the strict reading of
-PHASES.md L64: *"same `task:run` command now executes inside Docker;
-audit captures container lifecycle events"*.
+PHASES.md L64: _"same `task:run` command now executes inside Docker;
+audit captures container lifecycle events"_.
 
 - `app/services/intents/dispatch.ts` is now the canonical layer. The factory `containerDispatch(intentName)` returns a handler that delegates to `ContainerSpawner`. Built-in `echo` is wired through it — running `node ace task:run --intent echo --payload '"world"'` now spawns the `clawie/agent-runtime:0.2.1` image.
 - The dispatch handler emits three audit actions per task: `container.spawn_started`, then either `container.spawn_completed` (success, with `exitCode` and `durationMs` in details) or `container.spawn_failed` (failure, with cause in `reason`). These chain into the existing `task.*` audit trail.
@@ -104,7 +138,8 @@ These are P0 for later phases, not v0.1.0:
 - Scheduler + crons (Phase 9 / spec 027)
 - Backup/DR, upgrades, webhooks, marketplace (Phase 10 / specs 028, 029, 030, 024)
 
-[Unreleased]: https://github.com/clawie-dev/clawie/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/clawie-dev/clawie/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/clawie-dev/clawie/releases/tag/v0.4.0
 [0.3.0]: https://github.com/clawie-dev/clawie/releases/tag/v0.3.0
 [0.2.1]: https://github.com/clawie-dev/clawie/releases/tag/v0.2.1
 [0.2.0]: https://github.com/clawie-dev/clawie/releases/tag/v0.2.0

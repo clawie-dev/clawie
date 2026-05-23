@@ -1,9 +1,15 @@
 import { test } from '@japa/runner'
 import testUtils from '@adonisjs/core/services/test_utils'
 import { TaskStateMachine } from '#services/task_state_machine'
+import { setPolicyEngineForTest } from '#services/policy_engine'
+import { installAllowAllPolicy } from '#tests/helpers/allow_all_policy'
 
 test.group('services/task_state_machine', (group) => {
   group.each.setup(() => testUtils.db().truncate())
+  group.each.setup(() => {
+    installAllowAllPolicy()
+    return () => setPolicyEngineForTest(null)
+  })
 
   test('create persists a task in queued status', async ({ assert }) => {
     const sm = new TaskStateMachine()
