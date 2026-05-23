@@ -42,12 +42,10 @@ export class AuditLogger {
     event.reason = input.reason ?? null
     event.details = detailsString
     event.prevHash = prevHash
-    event.hash = ''
-    if (trx) event.useTransaction(trx)
-    await event.save()
-
+    // Compute hash BEFORE insert so the row lands atomically with a valid
+    // hash on first save. `id` is intentionally excluded — sequential identical
+    // events still produce distinct hashes via `prevHash`.
     event.hash = this.computeHash({
-      id: event.id,
       actor: event.actor,
       action: event.action,
       subjectKind: event.subjectKind,
@@ -57,6 +55,7 @@ export class AuditLogger {
       details: event.details,
       prevHash: event.prevHash,
     })
+    if (trx) event.useTransaction(trx)
     await event.save()
     return event
   }
@@ -70,7 +69,6 @@ export class AuditLogger {
     let prevHash: string | null = null
     for (const event of events) {
       const expected = this.computeHash({
-        id: event.id,
         actor: event.actor,
         action: event.action,
         subjectKind: event.subjectKind,
