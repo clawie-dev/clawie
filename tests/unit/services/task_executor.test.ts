@@ -4,13 +4,19 @@ import { TaskExecutor } from '#services/task_executor'
 import { TaskStateMachine } from '#services/task_state_machine'
 import { resetIntentsForTest, registerBuiltinIntents } from '#services/intents/index'
 import { intentRegistry } from '#services/intents/registry'
+import { setContainerSpawnerForTest } from '#services/container_spawner'
+import { fakeContainerSpawner } from '#tests/helpers/fake_spawner'
 
 test.group('services/task_executor', (group) => {
   group.each.setup(() => testUtils.db().truncate())
   group.each.setup(() => {
     resetIntentsForTest()
     registerBuiltinIntents()
-    return () => resetIntentsForTest()
+    setContainerSpawnerForTest(fakeContainerSpawner())
+    return () => {
+      resetIntentsForTest()
+      setContainerSpawnerForTest(null)
+    }
   })
 
   test('executes an echo task end-to-end to completed', async ({ assert }) => {

@@ -3,6 +3,8 @@ import testUtils from '@adonisjs/core/services/test_utils'
 import { TaskStateMachine } from '#services/task_state_machine'
 import { TaskExecutor } from '#services/task_executor'
 import { registerBuiltinIntents, resetIntentsForTest } from '#services/intents/index'
+import { setContainerSpawnerForTest } from '#services/container_spawner'
+import { fakeContainerSpawner } from '#tests/helpers/fake_spawner'
 import { auditLogger } from '#services/audit_logger'
 import AuditEvent from '#models/audit_event'
 import Task from '#models/task'
@@ -12,7 +14,11 @@ test.group('integration/task_lifecycle', (group) => {
   group.each.setup(() => {
     resetIntentsForTest()
     registerBuiltinIntents()
-    return () => resetIntentsForTest()
+    setContainerSpawnerForTest(fakeContainerSpawner())
+    return () => {
+      resetIntentsForTest()
+      setContainerSpawnerForTest(null)
+    }
   })
 
   test('full happy-path: create → claim → start → complete with audit trail', async ({
@@ -36,6 +42,8 @@ test.group('integration/task_lifecycle', (group) => {
       'task.created',
       'task.claimed',
       'task.running',
+      'container.spawn_started',
+      'container.spawn_completed',
       'task.completed',
     ])
   })

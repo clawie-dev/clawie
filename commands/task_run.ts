@@ -4,11 +4,15 @@ import { CommandOptions } from '@adonisjs/core/types/ace'
 /**
  * `node ace task:run --intent echo --payload '"world"'`
  * → creates a durable task, drives it through the state machine,
- *   prints the result as JSON.
+ *   prints the result as JSON. Built-in intents execute inside the
+ *   `clawie/agent-runtime` Docker image; the spawner emits
+ *   `container.spawn_started` / `container.spawn_completed` /
+ *   `container.spawn_failed` audit events alongside the standard task
+ *   lifecycle events.
  */
 export default class TaskRun extends BaseCommand {
   static commandName = 'task:run'
-  static description = 'Create a durable task with the given intent and execute it in-process'
+  static description = 'Create a durable task with the given intent and execute it in agent-runtime'
 
   static options: CommandOptions = {
     startApp: true,

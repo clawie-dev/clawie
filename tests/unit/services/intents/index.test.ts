@@ -8,16 +8,15 @@ test.group('services/intents/index', (group) => {
     return () => resetIntentsForTest()
   })
 
-  test('registerBuiltinIntents registers echo and container.echo', async ({ assert }) => {
+  test('registerBuiltinIntents registers echo', async ({ assert }) => {
     registerBuiltinIntents()
     assert.isTrue(intentRegistry().has('echo'))
-    assert.isTrue(intentRegistry().has('container.echo'))
   })
 
   test('registerBuiltinIntents is idempotent', async ({ assert }) => {
     registerBuiltinIntents()
     registerBuiltinIntents()
     registerBuiltinIntents()
-    assert.deepEqual(intentRegistry().list(), ['container.echo', 'echo'])
+    assert.deepEqual(intentRegistry().list(), ['echo'])
   })
 })
