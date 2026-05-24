@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto'
+import { randomInt } from 'node:crypto'
 import logger from '@adonisjs/core/services/logger'
 import type { SpawnRequest } from '#services/container_spawner'
 import type { EgressProvider, EgressProviderContext } from '#services/egress/provider'
@@ -142,7 +142,11 @@ export class OutcallEgressProvider implements EgressProvider {
     const namePrefix = ctx.teamSlug
       ? `clawie-${ctx.teamSlug}-${ctx.intentName}`
       : `clawie-${ctx.intentName}`
-    const containerName = `${namePrefix}-${randomBytes(4).toString('hex')}`
+    // Suffix must be pure digits: Outcall's derive_agent_name strips
+    // `-[0-9]+$` (replica-style suffix), so a hex suffix containing
+    // any letter would survive into the rule engine and break
+    // `agent.name == "clawie-<intent>"` matches.
+    const containerName = `${namePrefix}-${randomInt(10_000_000, 100_000_000)}`
 
     const extraArgs = [...(req.extraArgs ?? []), '--dns', gateway, '--name', containerName]
 

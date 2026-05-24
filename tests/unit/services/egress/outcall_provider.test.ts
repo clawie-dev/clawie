@@ -151,7 +151,7 @@ test.group('services/egress/outcall_provider', () => {
     assert.include(wrapped.extraArgs ?? [], '10.200.0.1')
     const nameIdx = (wrapped.extraArgs ?? []).indexOf('--name')
     assert.notEqual(nameIdx, -1)
-    assert.match((wrapped.extraArgs ?? [])[nameIdx + 1] ?? '', /^clawie-chat-[a-f0-9]{8}$/)
+    assert.match((wrapped.extraArgs ?? [])[nameIdx + 1] ?? '', /^clawie-chat-[0-9]{8}$/)
   })
 
   test('wrap mounts agent socket when mountAgentSocket is set', async ({ assert }) => {
@@ -182,7 +182,7 @@ test.group('services/egress/outcall_provider', () => {
     const args = wrapped.extraArgs ?? []
     const nameIdx = args.indexOf('--name')
     assert.notEqual(nameIdx, -1)
-    assert.match(args[nameIdx + 1] ?? '', /^clawie-engineering-chat-[a-f0-9]{8}$/)
+    assert.match(args[nameIdx + 1] ?? '', /^clawie-engineering-chat-[0-9]{8}$/)
   })
 
   test('wrap without teamSlug uses base network + base name', async ({ assert }) => {
@@ -197,7 +197,7 @@ test.group('services/egress/outcall_provider', () => {
     assert.equal(wrapped.customNetworkName, 'outcall-clawie')
     const args = wrapped.extraArgs ?? []
     const nameIdx = args.indexOf('--name')
-    assert.match(args[nameIdx + 1] ?? '', /^clawie-chat-[a-f0-9]{8}$/)
+    assert.match(args[nameIdx + 1] ?? '', /^clawie-chat-[0-9]{8}$/)
   })
 
   test('wrap with no mountAgentSocket leaves no -v mount', async ({ assert }) => {
