@@ -2,27 +2,28 @@ export default function Home() {
   return (
     <>
       <div className="hero">
-        <h1>It works — welcome to the power of a full-stack React app</h1>
+        <h1>Clawie</h1>
         <p>
-          Powered by Inertia and React, this setup blends server-driven routing with rich
-          client-side interactivity — seamless, fast, and cohesive.
+          The autonomous software agency framework. This instance is running. Sign in
+          to reach the operator dashboard, or use the REST API and the <code>node ace</code>
+          CLI to drive tasks, approvals, and team state.
         </p>
       </div>
 
       <div className="cards">
-        <a href="https://docs.adonisjs.com/introduction" target="_blank">
-          <h3>Official Docs &nbsp;›</h3>
-          <p>Comprehensive reference for building with AdonisJS</p>
+        <a href="/dashboard">
+          <h3>Dashboard &nbsp;›</h3>
+          <p>Tasks, approvals, audit log, egress, agent modifications</p>
         </a>
 
-        <a href="https://adocasts.com/" target="_blank">
-          <h3>Adocasts &nbsp;›</h3>
-          <p>Guided video tutorials for everyday development</p>
+        <a href="https://github.com/clawie-dev/docs" target="_blank" rel="noopener noreferrer">
+          <h3>Documentation &nbsp;›</h3>
+          <p>Concepts, install, REST API reference, CLI reference</p>
         </a>
 
-        <a href="https://discord.gg/vDcEjq6" target="_blank">
-          <h3>Discord &nbsp;›</h3>
-          <p>Connect with developers building with AdonisJS every day</p>
+        <a href="https://github.com/clawie-dev/clawie" target="_blank" rel="noopener noreferrer">
+          <h3>Source &nbsp;›</h3>
+          <p>The framework on GitHub — MIT, self-hosted forever</p>
         </a>
       </div>
     </>
