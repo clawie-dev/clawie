@@ -69,13 +69,15 @@ export class WebhookDispatcher {
         const sig = createHmac('sha256', sub.secret).update(body).digest('hex')
         headers['x-clawie-signature'] = `sha256=${sig}`
       }
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(new Error('webhook timeout')), this.timeoutMs)
       try {
-        const res = await Promise.race([
-          this.fetchImpl(sub.url, { method: 'POST', headers, body }),
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('webhook timeout')), this.timeoutMs)
-          ),
-        ])
+        const res = await this.fetchImpl(sub.url, {
+          method: 'POST',
+          headers,
+          body,
+          signal: controller.signal,
+        })
         await auditLogger().record({
           actor: 'webhook_dispatcher',
           action: res.ok ? 'webhook.delivered' : 'webhook.delivery_failed',
@@ -100,6 +102,8 @@ export class WebhookDispatcher {
           details: { subscription: sub.name, event: event.action },
         })
         logger.warn({ sub: sub.name, err: detail }, 'webhook delivery threw')
+      } finally {
+        clearTimeout(timer)
       }
     }
     return attempts
