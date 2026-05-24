@@ -1,4 +1,5 @@
 import logger from '@adonisjs/core/services/logger'
+import env from '#start/env'
 import {
   NullEgressProvider,
   setEgressProviderForTest,
@@ -21,7 +22,7 @@ import { OutcallEgressProvider } from '#services/egress/outcall_provider'
  * 'k3s-netpol' provider for Kubernetes Network Policy deployments).
  */
 export async function selectEgressProviderFromEnv(): Promise<EgressProvider> {
-  const choice = (process.env.CLAWIE_EGRESS ?? 'null').toLowerCase()
+  const choice = (env.get('CLAWIE_EGRESS') ?? 'null').toLowerCase()
 
   if (choice === 'null' || choice === '') {
     return new NullEgressProvider()
@@ -36,10 +37,10 @@ export async function selectEgressProviderFromEnv(): Promise<EgressProvider> {
   }
 
   const provider = new OutcallEgressProvider({
-    hostSocketPath: process.env.OUTCALL_HOST_SOCKET,
-    networkName: process.env.OUTCALL_NETWORK,
-    gateway: process.env.OUTCALL_GATEWAY,
-    mountAgentSocket: process.env.OUTCALL_MOUNT_AGENT_SOCKET === '1',
+    hostSocketPath: env.get('OUTCALL_HOST_SOCKET'),
+    networkName: env.get('OUTCALL_NETWORK'),
+    gateway: env.get('OUTCALL_GATEWAY'),
+    mountAgentSocket: env.get('OUTCALL_MOUNT_AGENT_SOCKET') === '1',
   })
 
   const result = await provider.bootstrap()

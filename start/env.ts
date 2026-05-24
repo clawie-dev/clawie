@@ -24,4 +24,14 @@ export default await Env.create(new URL('../', import.meta.url), {
 
   // Session
   SESSION_DRIVER: Env.schema.enum(['cookie', 'memory', 'database'] as const),
+
+  // Egress isolation (Linux + Outcall). All optional — see .env.example for
+  // semantics. The runtime treats unrecognised CLAWIE_EGRESS values as
+  // 'null' with a warning, so this is documented as a string rather than
+  // an enum to avoid hard-failing boot on a typo.
+  CLAWIE_EGRESS: Env.schema.string.optional(),
+  OUTCALL_HOST_SOCKET: Env.schema.string.optional(),
+  OUTCALL_NETWORK: Env.schema.string.optional(),
+  OUTCALL_GATEWAY: Env.schema.string.optional(),
+  OUTCALL_MOUNT_AGENT_SOCKET: Env.schema.string.optional(),
 })
