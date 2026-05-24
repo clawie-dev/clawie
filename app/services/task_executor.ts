@@ -9,7 +9,10 @@ import type Task from '#models/task'
  *  3. invoke handler with the parsed payload
  *  4. complete or fail (state machine)
  *
- * Phase 1: in-process execution. Phase 2 will replace this with a Docker spawn.
+ * The executor itself runs in the AdonisJS process; the per-intent work
+ * runs in an ephemeral Docker container spawned by the intent handler
+ * (see `services/container_spawner.ts`). v0.2.1 introduced the spawner;
+ * the executor's job is the state-machine plumbing around that call.
  */
 export class TaskExecutor {
   async execute(taskId: string, workerId = 'inproc'): Promise<Task> {
