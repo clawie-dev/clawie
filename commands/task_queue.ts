@@ -16,8 +16,8 @@ export default class TaskQueue extends BaseCommand {
   @flags.string({ description: 'Status filter (pending | approved | denied | expired)' })
   declare status?: string
 
-  @flags.string({ description: 'JSON output' })
-  declare json?: string
+  @flags.boolean({ description: 'JSON output' })
+  declare json: boolean
 
   async run() {
     const { default: Approval } = await import('#models/approval')
@@ -35,7 +35,7 @@ export default class TaskQueue extends BaseCommand {
       decidedBy: a.decidedBy,
     }))
 
-    if (this.json !== undefined) {
+    if (this.json) {
       this.logger.log(JSON.stringify(summary, null, 2))
       return
     }
