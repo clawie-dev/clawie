@@ -4,10 +4,11 @@ import Layout from '~/layouts/default'
 import { Data } from '@generated/data'
 import ReactDOMServer from 'react-dom/server'
 import { createInertiaApp } from '@inertiajs/react'
+import type { Page } from '@inertiajs/core'
 import { TuyauProvider } from '@adonisjs/inertia/react'
 import { resolvePageComponent } from '@adonisjs/inertia/helpers'
 
-export default function render(page: any) {
+export default function render(page: Page<Data.SharedProps>) {
   return createInertiaApp({
     page,
     render: ReactDOMServer.renderToString,
