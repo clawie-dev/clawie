@@ -9,6 +9,7 @@ import AuditEvent from '#models/audit_event'
 import AgentModification from '#models/agent_modification'
 import { egressProvider } from '#services/egress/provider'
 import { OutcallApiClient } from '#services/egress/api_client'
+import env from '#start/env'
 
 /**
  * Phase 6 dashboard. Renders three sections in a single React page:
@@ -154,7 +155,7 @@ async function loadEgressData(): Promise<EgressData> {
     return { active: false, providerName: provider.name }
   }
 
-  const socketPath = process.env.OUTCALL_HOST_SOCKET ?? '/run/outcall/host.sock'
+  const socketPath = env.get('OUTCALL_HOST_SOCKET') ?? '/run/outcall/host.sock'
   const client = new OutcallApiClient(socketPath)
   try {
     const [bridge, rules, proxy] = await Promise.all([
