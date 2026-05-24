@@ -6,7 +6,7 @@ import { unixSocketRequest } from '#services/egress/unix_socket_client'
  * side of the integration lives in `OutcallEgressProvider`; this
  * client never POSTs.
  *
- * Wire shapes mirror `Outcall-dev/outcall/application/outcall-api/
+ * Wire shapes mirror `outcall-dev/outcall/application/outcall-api/
  * src/lib.rs` -- if Outcall changes its types, the typed unwrap below
  * is the canary.
  */

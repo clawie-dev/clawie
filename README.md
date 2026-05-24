@@ -65,7 +65,7 @@ Clawie's substrate is built out of ten capability slices. Each slice was added a
 
 ## Outcall integration
 
-Clawie is a *consumer* of [Outcall](https://github.com/Outcall-dev/root). Outcall does NOT depend on Clawie. When `CLAWIE_EGRESS=outcall`:
+Clawie is a *consumer* of [Outcall](https://github.com/outcall-dev/root). Outcall does NOT depend on Clawie. When `CLAWIE_EGRESS=outcall`:
 
 - Each team gets a dedicated Outcall Docker network.
 - Agent containers get `--network`, `--dns`, `HTTP(S)_PROXY` so egress passes through Outcall's L3 + L4 + L7 enforcement.

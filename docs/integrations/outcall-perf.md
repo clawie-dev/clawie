@@ -44,9 +44,9 @@ The Phase 5a audit established Outcall's correctness baseline; Phase 9a's questi
 
 | Trigger | PR target | Justification beyond Clawie |
 |---|---|---|
-| `nftables` rule table approaches its cap under realistic load | `Outcall-dev/outcall` — increase cap or add per-rule eviction | Benefits any multi-agent operator |
-| Reload latency >1s with 100 rule files | `Outcall-dev/outcall` — incremental reload | Benefits any operator managing many rule packs |
-| Missing observability: no way to count L3 drops | `Outcall-dev/outcall` — add a `nftables_drops` counter to `/api/v1/bridge` | Benefits any UI consumer |
+| `nftables` rule table approaches its cap under realistic load | `outcall-dev/outcall` — increase cap or add per-rule eviction | Benefits any multi-agent operator |
+| Reload latency >1s with 100 rule files | `outcall-dev/outcall` — incremental reload | Benefits any operator managing many rule packs |
+| Missing observability: no way to count L3 drops | `outcall-dev/outcall` — add a `nftables_drops` counter to `/api/v1/bridge` | Benefits any UI consumer |
 | Dashboard misreads block counts | `clawie/clawie` (in-tree) — fix the Egress tab to distinguish L3 vs L7 drops | Clawie-side only |
 
 ## Phase 9a exit
