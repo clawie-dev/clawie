@@ -27,7 +27,7 @@ import type { IntentContext, IntentHandler, IntentOutcome } from '#services/inte
  * if any, is layered on by the EgressProvider -- not by the dispatcher.
  */
 
-export const AGENT_RUNTIME_IMAGE = 'clawie/agent-runtime:0.4.1'
+export const AGENT_RUNTIME_IMAGE = 'clawie/agent-runtime:0.5.0'
 
 export interface ContainerDispatchOptions {
   image?: string

@@ -100,7 +100,7 @@ test.group('services/intents/dispatch', (group) => {
   })
 
   test('exposes the pinned agent-runtime image tag', ({ assert }) => {
-    assert.equal(AGENT_RUNTIME_IMAGE, 'clawie/agent-runtime:0.4.1')
+    assert.equal(AGENT_RUNTIME_IMAGE, 'clawie/agent-runtime:0.5.0')
   })
 
   test('emits container.spawn_started + container.spawn_completed on success', async ({
