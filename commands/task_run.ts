@@ -32,10 +32,10 @@ export default class TaskRun extends BaseCommand {
   })
   declare idempotencyKey?: string
 
-  @flags.string({
+  @flags.boolean({
     description: 'JSON output instead of pretty',
   })
-  declare json?: string
+  declare json: boolean
 
   async run() {
     if (!this.intent) {
@@ -80,7 +80,7 @@ export default class TaskRun extends BaseCommand {
         `task ${created.id} requires approval. ` +
           `run: node ace task:approve --id ${created.id} --decision approve`
       )
-      if (this.json !== undefined) {
+      if (this.json) {
         this.logger.log(
           JSON.stringify(
             { id: created.id, intent: created.intent, status: created.status },
@@ -110,7 +110,7 @@ export default class TaskRun extends BaseCommand {
       failureDetail: finished.failureDetail,
     }
 
-    if (this.json !== undefined) {
+    if (this.json) {
       this.logger.log(JSON.stringify(summary, null, 2))
     } else {
       this.logger.success(`task ${finished.id} → ${finished.status}`)
