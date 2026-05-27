@@ -97,8 +97,13 @@ version: "1"
 
 rules:`
   const blocks = hosts.map((host, idx) => {
-    const providerName = host.split('.').slice(-2)[0] ?? host.replace(/\./g, '-')
-    const id = `clawie-team-${teamSlug}-chat-${providerName}`
+    // Slug the full host so two hosts sharing a registrable domain
+    // (api.anthropic.com vs eu.anthropic.com) get distinct rule ids.
+    const hostSlug = host
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+    const id = `clawie-team-${teamSlug}-chat-${hostSlug}`
     const cond = `agent.name == "clawie-${teamSlug}-chat" && (dns.query == "${host}" || http.host == "${host}")`
     return [
       `  - id: ${id}`,

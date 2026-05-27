@@ -79,6 +79,33 @@ test.group('services/egress/rule_pack_writer', () => {
     }
   })
 
+  test('gives hosts sharing a domain distinct rule ids', async ({ assert }) => {
+    const fake = await startFakeReload({
+      status: 200,
+      body: { success: true, data: { files_loaded: 1, rules_loaded: 2, warnings: [] } },
+    })
+    const rulesDir = mkdtempSync(join(tmpdir(), 'rules-'))
+    try {
+      const result = await new RulePackWriter({
+        rulesDir,
+        hostSocketPath: fake.socketPath,
+      }).syncTeam({
+        teamSlug: 'support',
+        allowedChatHosts: ['api.anthropic.com', 'eu.anthropic.com'],
+      })
+      const yaml = readFileSync(result.filePath, 'utf8')
+      const ids = [...yaml.matchAll(/id: (\S+)/g)].map((m) => m[1])
+      assert.deepEqual(ids, [
+        'clawie-team-support-chat-api-anthropic-com',
+        'clawie-team-support-chat-eu-anthropic-com',
+      ])
+      assert.equal(new Set(ids).size, ids.length)
+    } finally {
+      rmSync(rulesDir, { recursive: true, force: true })
+      await fake.close()
+    }
+  })
+
   test('reload failure throws with the upstream body', async ({ assert }) => {
     const fake = await startFakeReload({
       status: 500,
