@@ -12,11 +12,13 @@ import { OutcallApiClient } from '#services/egress/api_client'
 import env from '#start/env'
 
 /**
- * Phase 6 dashboard. Renders three sections in a single React page:
+ * Phase 6 dashboard. Renders five sections in a single React page:
  *
  *   - Tasks    : latest 50, with status, intent, result/failure summary.
  *   - Approvals: pending queue, oldest first, with deadline countdown.
  *   - Audit    : latest 100 events from the hash-chained log.
+ *   - Self-Mods: latest 50 agent self-modification proposals.
+ *   - Egress   : Outcall bridge/proxy/rule state when CLAWIE_EGRESS=outcall.
  *
  * Mutations (approve / deny) do NOT live here -- the dashboard POSTs to
  * the existing `/v1/tasks/:id/approval` REST endpoint so a single
