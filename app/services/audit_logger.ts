@@ -1,6 +1,6 @@
-import { createHash } from 'node:crypto'
 import type { TransactionClientContract } from '@adonisjs/lucid/types/database'
 import AuditEvent, { type AuditOutcome } from '#models/audit_event'
+import { computeAuditHash } from '#services/audit_hash'
 
 export interface AuditInput {
   actor: string
@@ -45,7 +45,7 @@ export class AuditLogger {
     // Compute hash BEFORE insert so the row lands atomically with a valid
     // hash on first save. `id` is intentionally excluded — sequential identical
     // events still produce distinct hashes via `prevHash`.
-    event.hash = this.computeHash({
+    event.hash = computeAuditHash({
       actor: event.actor,
       action: event.action,
       subjectKind: event.subjectKind,
@@ -68,7 +68,7 @@ export class AuditLogger {
     const events = await AuditEvent.query().orderBy('id', 'asc')
     let prevHash: string | null = null
     for (const event of events) {
-      const expected = this.computeHash({
+      const expected = computeAuditHash({
         actor: event.actor,
         action: event.action,
         subjectKind: event.subjectKind,
@@ -84,11 +84,6 @@ export class AuditLogger {
       prevHash = event.hash
     }
     return { ok: true }
-  }
-
-  private computeHash(payload: Record<string, unknown>): string {
-    const canonical = JSON.stringify(payload, Object.keys(payload).sort())
-    return createHash('sha256').update(canonical).digest('hex')
   }
 }
 

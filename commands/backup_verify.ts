@@ -72,8 +72,9 @@ export default class BackupVerify extends BaseCommand {
       return
     }
 
-    // Walk the audit chain. crypto verifies inline.
-    const { createHash } = await import('node:crypto')
+    // Walk the audit chain, recomputing each event's hash with the same
+    // function the live logger uses so the two can't drift.
+    const { computeAuditHash } = await import('#services/audit_hash')
     let prevHash: string | null = null
     let brokenAt: number | null = null
     const rows = conn
@@ -92,9 +93,7 @@ export default class BackupVerify extends BaseCommand {
         details: row.details,
         prevHash,
       }
-      const expectedHash = createHash('sha256')
-        .update(JSON.stringify(payload, Object.keys(payload).sort()))
-        .digest('hex')
+      const expectedHash = computeAuditHash(payload)
       if (row.prev_hash !== prevHash || row.hash !== expectedHash) {
         brokenAt = row.id as number
         break
