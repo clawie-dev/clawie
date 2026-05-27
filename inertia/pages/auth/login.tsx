@@ -31,8 +31,9 @@ export default function Login() {
                   name="password"
                   id="password"
                   autoComplete="current-password"
+                  data-invalid={errors.password ? 'true' : undefined}
                 />
-                {errors.password ? <span>{errors.password}</span> : ''}
+                {errors.password && <div>{errors.password}</div>}
               </div>
 
               <div>
