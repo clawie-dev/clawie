@@ -1,8 +1,10 @@
 import { DateTime } from 'luxon'
 
 /**
- * Phase 9 cron parser. Standard 5-field form with `*`, `n`, `* / n` (star-slash-n),
- * `a,b,c`, `a-b`. No predefined macros (`@daily` etc.) yet — operators
+ * Phase 9 cron parser. Standard 5-field form with `*`, `n`, `a,b,c`, `a-b`,
+ * and a step on a wildcard or range (`* / n`, `a-b / n`). A step on a bare
+ * value (`n / n`) is rejected — it has no upper bound. No predefined macros
+ * (`@daily` etc.) yet — operators
  * write the explicit cron string. The parser is intentionally small;
  * we accept the tradeoff of less expressive power for zero deps.
  *
@@ -79,6 +81,14 @@ function parseField(field: string, [min, max]: readonly [number, number]): Parse
       const single = Number.parseInt(range, 10)
       if (!Number.isInteger(single)) {
         throw new Error(`invalid value in cron segment "${segment}"`)
+      }
+      if (slashIdx !== -1) {
+        // A step on a bare value (e.g. "5/15") has no upper bound, so it
+        // would silently match only the single value. Require an explicit
+        // range instead, e.g. "5-59/15".
+        throw new Error(
+          `step needs "*" or a range in cron segment "${segment}"; write e.g. "${single}-${max}/${step}"`
+        )
       }
       from = single
       to = single

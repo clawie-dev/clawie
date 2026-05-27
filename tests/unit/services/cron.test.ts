@@ -25,6 +25,18 @@ test.group('services/cron', () => {
     )
   })
 
+  test('parses a step on an explicit range', ({ assert }) => {
+    const c = parseCron('5-59/15 * * * *')
+    assert.deepEqual(
+      [...c.minute.matches].sort((a, b) => a - b),
+      [5, 20, 35, 50]
+    )
+  })
+
+  test('rejects a step on a bare value', ({ assert }) => {
+    assert.throws(() => parseCron('5/15 * * * *'), /step needs "\*" or a range/)
+  })
+
   test('rejects wrong field count', ({ assert }) => {
     assert.throws(() => parseCron('* * *'), /5 fields/)
   })
