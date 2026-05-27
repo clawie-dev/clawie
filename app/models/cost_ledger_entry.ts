@@ -7,8 +7,8 @@ import { DateTime } from 'luxon'
  * envelope output. USD is stored as integer tenths of a cent
  * (`usd_tenths_of_cent`) so we can sum without float rounding drift.
  *
- * Helpers: `entry.dollars` and `entry.cents` reconstruct human-readable
- * values for display.
+ * Helpers: `entry.usdDollars` and `entry.usdCents` reconstruct
+ * human-readable values for display.
  */
 export default class CostLedgerEntry extends BaseModel {
   static table = 'cost_ledger'
