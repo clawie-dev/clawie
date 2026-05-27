@@ -29,7 +29,7 @@ export default class CronCreate extends BaseCommand {
 
   async run() {
     if (!this.name || !this.schedule || !this.intent) {
-      this.logger.error('--name, --schedule, --intent all required')
+      this.logger.error('name argument and --schedule, --intent flags are required')
       this.exitCode = 1
       return
     }
