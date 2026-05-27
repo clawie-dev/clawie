@@ -104,16 +104,12 @@ function readPath(value: unknown, path: string): unknown {
 }
 
 function deepEqualPrimitive(a: unknown, b: unknown): boolean {
-  if (a === b) return true
-  if (typeof a !== typeof b) return false
-  if (a === null || b === null) return false
-  if (typeof a === 'object') {
-    // Phase 4: only support primitive equality. Object payloads in
-    // predicates would need stable JSON canonicalization; defer that
-    // to spec 003.
-    return false
-  }
-  return false
+  // Phase 4: predicate matching is exact equality on primitives. Object
+  // or array operands never compare equal here — two distinct objects are
+  // never `===`, and predicate/payload values are parsed independently —
+  // so strict equality is the whole contract. Structural deep-equality
+  // with stable JSON canonicalization is deferred to spec 003.
+  return a === b
 }
 
 let cachedInstance: PolicyEngine | null = null
