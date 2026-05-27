@@ -8,8 +8,9 @@ import { intentRegistry } from '#services/intents/registry'
 
 /**
  * Phase 1 controller. POST creates a task and synchronously executes it
- * via the in-process executor (intentionally simple — Phase 2 will detach
- * via a worker queue).
+ * via the in-process executor — the request blocks until the task reaches
+ * a terminal state. v1.0 ships no async worker queue; execution is inline
+ * by design.
  */
 export default class TasksController {
   async index({ request, response }: HttpContext) {
@@ -55,8 +56,8 @@ export default class TasksController {
       return response.created(serializeTask(created))
     }
 
-    // Synchronous in-process execution for now. A worker queue lands
-    // alongside the scheduler in Phase 9.
+    // Synchronous in-process execution: block until the task is terminal,
+    // then return it. v1.0 has no async worker queue.
     const finished = await taskExecutor().execute(created.id, 'api')
 
     return response.created(serializeTask(finished))
