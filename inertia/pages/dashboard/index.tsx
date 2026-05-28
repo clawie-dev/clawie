@@ -500,6 +500,7 @@ const STATUS_COLOR: Record<string, string> = {
   completed: '#3a7',
   failed: '#a33',
   running: '#369',
+  completing: '#369',
   queued: '#888',
   approval_pending: '#c93',
   claimed: '#369',
