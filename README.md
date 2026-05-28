@@ -12,7 +12,8 @@ cp .env.example .env
 node ace generate:key
 node ace migration:run
 
-# Run a task (in-process for dev, Docker container in prod).
+# Run a task. Every intent executes in an ephemeral clawie/agent-runtime
+# Docker container, so Docker must be installed and running.
 node ace task:run --intent echo --payload '"world"'
 
 # Bring up the dashboard.
