@@ -22,9 +22,11 @@ import type { IntentContext, IntentHandler, IntentOutcome } from '#services/inte
  *   - echo  -> network:none, no credentials, no cost expected
  *   - chat  -> network:bridge, providers:[anthropic,openai], cost expected
  *
- * Phase 5.1 walks back the v0.5.0 sidecar fork. Credentials live in the
- * agent container's env (the Phase 3 model). Network-level isolation,
- * if any, is layered on by the EgressProvider -- not by the dispatcher.
+ * Phase 5 ships the EgressProvider seam. An earlier sidecar design was
+ * abandoned before any agent-runtime tag shipped it. Credentials live
+ * in the agent container's env (the Phase 3 model). Network-level
+ * isolation, if any, is layered on by the EgressProvider — not by the
+ * dispatcher.
  */
 
 export const AGENT_RUNTIME_IMAGE = 'clawie/agent-runtime:0.5.0'
