@@ -7,7 +7,7 @@ import { unixSocketRequest } from '#services/egress/unix_socket_client'
 /**
  * Phase 5b: real connector to a running Outcall daemon.
  *
- * Outcall (outcall-dev/root) is a Linux-only host daemon that governs
+ * Outcall (outcall-dev/outcall) is a Linux-only host daemon that governs
  * Docker container egress at L3 (nftables) + L4 (DNS filter) + L7
  * (HTTP proxy). This provider attaches Clawie's spawned containers to
  * Outcall's managed network and lets the daemon enforce.
