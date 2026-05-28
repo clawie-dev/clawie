@@ -7,9 +7,10 @@ import { DateTime } from 'luxon'
  * AgentDefinition by name; Phase 9 (scheduler) will use AGENTS.yaml's
  * cron blocks. For Phase 7 this is just a snapshot model.
  *
- * The raw file contents are kept verbatim; parsing into structured
- * fields happens in `app/services/agent_loader.ts` so we can rev the
- * parser without re-reading from disk.
+ * The raw file contents are kept verbatim. The loader deliberately
+ * does no YAML parsing — consumers (e.g. the scheduler reading
+ * AGENTS.yaml cron blocks) parse on demand so the spec-008 schema can
+ * rev without a loader change.
  */
 export default class AgentDefinition extends BaseModel {
   static table = 'agents'
