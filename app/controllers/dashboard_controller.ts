@@ -1,5 +1,8 @@
-// @no-test: AdonisJS controller-as-glue covered by tests/functional/dashboard.test.ts
-// (a future addition); read-only views over models that already have unit-test mirrors.
+// @no-test: thin Inertia glue. `index()` fans out read-only queries and maps rows
+// through pure serializers; the models it reads (Task, Approval, AuditEvent,
+// AgentModification) all have unit-test mirrors, and the sole error path (Outcall
+// socket unreachable) lives in OutcallApiClient, which is tested separately. No
+// controller-level branching to mirror.
 import type { HttpContext } from '@adonisjs/core/http'
 import logger from '@adonisjs/core/services/logger'
 import { DateTime } from 'luxon'
