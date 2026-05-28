@@ -1,7 +1,7 @@
 import db from '@adonisjs/lucid/services/db'
 import type { TransactionClientContract } from '@adonisjs/lucid/types/database'
 import { DateTime } from 'luxon'
-import Task, { type TaskStatus, TERMINAL_STATUSES } from '#models/task'
+import Task, { type TaskStatus } from '#models/task'
 import Approval from '#models/approval'
 import { auditLogger } from '#services/audit_logger'
 import { policyEngine } from '#services/policy_engine'
@@ -442,4 +442,4 @@ export function taskStateMachine(): TaskStateMachine {
   return cachedInstance
 }
 
-export { ALLOWED_TRANSITIONS, TERMINAL_STATUSES }
+export { ALLOWED_TRANSITIONS }
