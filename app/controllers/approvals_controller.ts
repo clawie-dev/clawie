@@ -1,6 +1,6 @@
-// @no-test: covered via tests/integration/approval_lifecycle.test.ts and the
-// future tests/functional/v1_approvals_api.test.ts. AdonisJS controllers are
-// thin glue and are typically exercised through HTTP rather than unit tests.
+// @no-test: covered via tests/integration/approval_lifecycle.test.ts. AdonisJS
+// controllers are thin glue and are typically exercised through HTTP rather
+// than unit tests.
 import type { HttpContext } from '@adonisjs/core/http'
 import vine from '@vinejs/vine'
 import { DateTime } from 'luxon'
