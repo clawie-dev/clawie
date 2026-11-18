@@ -85,3 +85,5 @@ Scheduler-load perf brief: [`docs/integrations/outcall-perf.md`](docs/integratio
 ## License
 
 MIT.
+
+[![advertisement](https://ads.servead.net/i/d3775e6d-670a-4170-9e73-443ec5a3c899.svg)](https://ads.servead.net/c/d3775e6d-670a-4170-9e73-443ec5a3c899)
